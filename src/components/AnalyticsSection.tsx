@@ -13,7 +13,7 @@ import {
   SleepScheduleConfig,
 } from '../db/db';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Moon, X } from 'lucide-react';
+import { Moon, Check, X } from 'lucide-react';
 
 interface AnalyticsSectionProps {
   selectedDateKey: string;
@@ -47,19 +47,39 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     [selectedDateKey]
   );
 
-  // Sleep states for selected date
-  const [sleepTime, setSleepTime] = useState<string>('');
-  const [wakeTime, setWakeTime] = useState<string>('');
+  // Local draft states for sleep editing (defaults to 04:30 and 12:30 if unlogged)
+  const [draftSleepTime, setDraftSleepTime] = useState<string>('04:30');
+  const [draftWakeTime, setDraftWakeTime] = useState<string>('12:30');
+  const [justLogged, setJustLogged] = useState<boolean>(false);
 
   useEffect(() => {
-    if (currentDayRecord) {
-      setSleepTime(currentDayRecord.sleepTime || '');
-      setWakeTime(currentDayRecord.wakeTime || '');
+    if (
+      currentDayRecord?.sleepTime &&
+      currentDayRecord?.wakeTime &&
+      (currentDayRecord?.sleepDurationMin || 0) > 0
+    ) {
+      setDraftSleepTime(currentDayRecord.sleepTime);
+      setDraftWakeTime(currentDayRecord.wakeTime);
     } else {
-      setSleepTime('');
-      setWakeTime('');
+      setDraftSleepTime('04:30');
+      setDraftWakeTime('12:30');
     }
+    setJustLogged(false);
   }, [currentDayRecord, selectedDateKey]);
+
+  // Is today's record saved in DB?
+  const isLogged = Boolean(
+    currentDayRecord?.sleepTime &&
+    currentDayRecord?.wakeTime &&
+    (currentDayRecord?.sleepDurationMin || 0) > 0
+  );
+
+  const isMatchingSaved =
+    isLogged &&
+    currentDayRecord?.sleepTime === draftSleepTime &&
+    currentDayRecord?.wakeTime === draftWakeTime;
+
+  const draftDurationMin = calculateSleepMinutes(draftSleepTime, draftWakeTime);
 
   // 14 Past Dates
   const past14DateKeys: string[] = [];
@@ -105,18 +125,20 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
   const activeHoverData = barcodeData.find((d) => d.dateKey === hoveredBarcodeDay);
 
   // Sleep Save Handler
-  const saveSleep = async (newSleep: string, newWake: string) => {
-    const duration = calculateSleepMinutes(newSleep, newWake);
+  const handleLogSleep = async () => {
+    if (!draftSleepTime || !draftWakeTime) return;
+    const duration = calculateSleepMinutes(draftSleepTime, draftWakeTime);
     const existing = await db.days.get(selectedDateKey);
     await db.days.put({
       dateKey: selectedDateKey,
-      sleepTime: newSleep,
-      wakeTime: newWake,
+      sleepTime: draftSleepTime,
+      wakeTime: draftWakeTime,
       sleepDurationMin: duration,
       focusedSeconds: existing?.focusedSeconds || 0,
       distractedSeconds: existing?.distractedSeconds || 0,
       updatedAt: Date.now(),
     });
+    setJustLogged(true);
   };
 
   const handleSaveSleepConfig = () => {
@@ -132,8 +154,6 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     setSleepConfig(updated);
     setIsEditingConfig(false);
   };
-
-  const calculatedSleepMin = calculateSleepMinutes(sleepTime, wakeTime);
 
   // Shift Calculations for tonight
   const shiftStats = calculateSleepShiftForDate(sleepConfig, selectedDateKey);
@@ -166,53 +186,93 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
       {/* ============================================================== */}
       {/* CARD 1: UNIFIED SLEEP LOG & SHIFTER (col-span-12 md:col-span-7) */}
       {/* ============================================================== */}
-      <div className="col-span-12 md:col-span-7 bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-6 text-[#F2F2F4] flex flex-col justify-between">
+      <div className="col-span-12 md:col-span-7 bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-5 text-[#F2F2F4] flex flex-col justify-between">
         {/* Header: SLEEP on left, total duration badge on right */}
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-mono uppercase tracking-widest text-white/50 font-bold flex items-center gap-1.5">
             <Moon size={12} className="text-[#D71921]" />
             SLEEP
           </span>
-          <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-white/10 text-white font-medium">
-            {formatSleepDuration(calculatedSleepMin)}
+          <span
+            className={`font-mono text-xs px-2.5 py-0.5 rounded-full font-medium transition-colors ${
+              isLogged
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                : 'bg-white/10 text-white/50'
+            }`}
+          >
+            {isLogged ? formatSleepDuration(currentDayRecord!.sleepDurationMin) : '--h --m'}
           </span>
         </div>
 
         {/* Middle Row: 2 Compact Time Inputs side-by-side */}
-        <div className="grid grid-cols-2 gap-3 my-4">
-          <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-3 flex flex-col justify-between">
-            <span className="text-[10px] font-mono uppercase text-white/40 mb-1">
-              Slept at
-            </span>
+        <div className="grid grid-cols-2 gap-2.5 my-3">
+          <div className="bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.09] rounded-2xl p-2.5 flex flex-col justify-between transition-colors">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-mono uppercase text-white/40 tracking-wider">
+                Slept at
+              </span>
+              <span className="text-[10px] font-mono text-white/70">
+                {formatTime12Hour(draftSleepTime)}
+              </span>
+            </div>
             <input
               type="time"
-              value={sleepTime}
+              value={draftSleepTime}
               onChange={(e) => {
-                setSleepTime(e.target.value);
-                saveSleep(e.target.value, wakeTime);
+                setDraftSleepTime(e.target.value);
+                setJustLogged(false);
               }}
-              className="bg-transparent font-mono text-sm text-white font-medium outline-none w-full cursor-pointer"
+              className="bg-black/30 border border-white/10 rounded-xl px-2.5 py-1 font-mono text-sm text-white font-medium outline-none w-full cursor-pointer focus:border-[#D71921]/60 focus:bg-black/50 transition-all"
             />
           </div>
 
-          <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-3 flex flex-col justify-between">
-            <span className="text-[10px] font-mono uppercase text-white/40 mb-1">
-              Woke at
-            </span>
+          <div className="bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.09] rounded-2xl p-2.5 flex flex-col justify-between transition-colors">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-mono uppercase text-white/40 tracking-wider">
+                Woke at
+              </span>
+              <span className="text-[10px] font-mono text-white/70">
+                {formatTime12Hour(draftWakeTime)}
+              </span>
+            </div>
             <input
               type="time"
-              value={wakeTime}
+              value={draftWakeTime}
               onChange={(e) => {
-                setWakeTime(e.target.value);
-                saveSleep(sleepTime, e.target.value);
+                setDraftWakeTime(e.target.value);
+                setJustLogged(false);
               }}
-              className="bg-transparent font-mono text-sm text-white font-medium outline-none w-full cursor-pointer"
+              className="bg-black/30 border border-white/10 rounded-xl px-2.5 py-1 font-mono text-sm text-white font-medium outline-none w-full cursor-pointer focus:border-[#D71921]/60 focus:bg-black/50 transition-all"
             />
           </div>
         </div>
 
+        {/* Tactile Nothing OS "Log Sleep" Button */}
+        <button
+          onClick={handleLogSleep}
+          className={`w-full py-2.5 px-4 rounded-2xl font-mono text-xs font-semibold tracking-wider flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md cursor-pointer ${
+            isMatchingSaved || justLogged
+              ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 shadow-emerald-500/10'
+              : 'bg-[#ECECEF] hover:bg-white text-[#0A0A0C] shadow-lg hover:shadow-white/20'
+          }`}
+        >
+          {isMatchingSaved || justLogged ? (
+            <>
+              <Check size={14} className="text-emerald-400 stroke-[2.5]" />
+              <span>
+                Sleep Logged · {formatSleepDuration(currentDayRecord?.sleepDurationMin || draftDurationMin)} (Update)
+              </span>
+            </>
+          ) : (
+            <>
+              <Moon size={13} className="text-[#D71921]" />
+              <span>Log Sleep · {formatSleepDuration(draftDurationMin)}</span>
+            </>
+          )}
+        </button>
+
         {/* Bottom Divider: Tonight's Shift on Left, Final Goal on Right */}
-        <div className="border-t border-white/10 pt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="border-t border-white/10 pt-3 mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
           {/* Left: Tonight's Shift */}
           <div className="flex items-center gap-1.5 font-mono text-white/80">
             <span className="text-white/40 text-[11px]">Target:</span>
@@ -241,7 +301,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
       {/* ============================================================== */}
       {/* CARD 2: TASK COMPLETION (col-span-12 md:col-span-5) */}
       {/* ============================================================== */}
-      <div className="col-span-12 md:col-span-5 bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-6 text-[#F2F2F4] flex flex-col justify-between">
+      <div className="col-span-12 md:col-span-5 bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-5 text-[#F2F2F4] flex flex-col justify-between">
         {/* Header: TASK COMPLETION on left, 7d avg in muted mono on right */}
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-mono uppercase tracking-widest text-white/50 font-bold">
@@ -262,23 +322,23 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
           </span>
         </div>
 
-        {/* Bottom: Single crisp ASCII progress bar. Nothing else! */}
+        {/* Bottom: Single crisp ASCII progress bar. Displays percentage exactly once! */}
         <div className="font-mono text-xs text-white/70 tracking-wider">
-          {renderAsciiProgressBar(todayRate, 14)} {todayRate}%
+          {renderAsciiProgressBar(todayRate, 14)}
         </div>
       </div>
 
       {/* ============================================================== */}
       {/* CARD 3: SINGLE TABBED CHART CARD (col-span-12) */}
       {/* ============================================================== */}
-      <div className="col-span-12 bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-6 text-[#F2F2F4]">
+      <div className="col-span-12 bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-5 text-[#F2F2F4]">
         {/* Card Header: Left Segmented Pill Toggle | Right 2-Dot Legend */}
         <div className="flex items-center justify-between mb-3">
           {/* Segmented Pill Toggle */}
           <div className="bg-white/[0.06] p-1 rounded-full flex items-center gap-1 border border-white/10">
             <button
               onClick={() => setChartTab('sleep')}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
                 chartTab === 'sleep'
                   ? 'bg-white text-black font-semibold shadow-sm'
                   : 'text-white/60 hover:text-white'
@@ -288,7 +348,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
             </button>
             <button
               onClick={() => setChartTab('focus')}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
                 chartTab === 'focus'
                   ? 'bg-white text-black font-semibold shadow-sm'
                   : 'text-white/60 hover:text-white'
@@ -441,7 +501,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
               <h3 className="font-semibold text-sm text-white">Edit Sleep Schedule Target</h3>
               <button
                 onClick={() => setIsEditingConfig(false)}
-                className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
+                className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors cursor-pointer"
               >
                 <X size={14} />
               </button>
@@ -455,7 +515,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                     type="time"
                     value={baseSleepInput}
                     onChange={(e) => setBaseSleepInput(e.target.value)}
-                    className="bg-white/10 px-2.5 py-1.5 rounded-xl text-white w-full outline-none"
+                    className="bg-white/10 px-2.5 py-1.5 rounded-xl text-white w-full outline-none cursor-pointer"
                   />
                 </div>
                 <div>
@@ -464,7 +524,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                     type="time"
                     value={baseWakeInput}
                     onChange={(e) => setBaseWakeInput(e.target.value)}
-                    className="bg-white/10 px-2.5 py-1.5 rounded-xl text-white w-full outline-none"
+                    className="bg-white/10 px-2.5 py-1.5 rounded-xl text-white w-full outline-none cursor-pointer"
                   />
                 </div>
                 <div>
@@ -473,7 +533,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                     type="time"
                     value={targetSleepInput}
                     onChange={(e) => setTargetSleepInput(e.target.value)}
-                    className="bg-white/10 px-2.5 py-1.5 rounded-xl text-white w-full outline-none"
+                    className="bg-white/10 px-2.5 py-1.5 rounded-xl text-white w-full outline-none cursor-pointer"
                   />
                 </div>
                 <div>
@@ -482,7 +542,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                     type="time"
                     value={targetWakeInput}
                     onChange={(e) => setTargetWakeInput(e.target.value)}
-                    className="bg-white/10 px-2.5 py-1.5 rounded-xl text-white w-full outline-none"
+                    className="bg-white/10 px-2.5 py-1.5 rounded-xl text-white w-full outline-none cursor-pointer"
                   />
                 </div>
               </div>
@@ -504,13 +564,13 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-white/10">
               <button
                 onClick={() => setIsEditingConfig(false)}
-                className="px-4 py-2 text-xs text-white/60 hover:text-white transition-colors"
+                className="px-4 py-2 text-xs text-white/60 hover:text-white transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveSleepConfig}
-                className="px-4 py-2 bg-[#D71921] hover:bg-[#b5141b] text-white rounded-full text-xs font-medium transition-all shadow-md"
+                className="px-4 py-2 bg-[#D71921] hover:bg-[#b5141b] text-white rounded-full text-xs font-medium transition-all shadow-md cursor-pointer"
               >
                 Save Target
               </button>
