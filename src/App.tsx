@@ -9,7 +9,6 @@ export const App: React.FC = () => {
   const [selectedDateKey, setSelectedDateKey] = useState<string>(getLocalDateKey());
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState<number>(0);
 
-  // Ensure default goals are initialized
   useEffect(() => {
     ensureDefaultGoals();
   }, []);
@@ -19,10 +18,10 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F6F2] text-[#141413] antialiased">
-      {/* Centered, breathable single column */}
-      <div className="max-w-4xl mx-auto px-6 py-10 space-y-10">
-        {/* Header: Brand, Date Switcher, Inline Sleep & Clickable Goals */}
+    <div className="min-h-screen bg-[#E8E6DF] text-[#111110] antialiased">
+      {/* Widescreen 1360px Bento Grid Workspace */}
+      <div className="max-w-[1360px] mx-auto min-h-screen p-3 sm:p-4 md:p-6 flex flex-col gap-3">
+        {/* Top Instrument Strip (h-14) */}
         <TopSpecificationBar
           key={`top-bar-${dataRefreshTrigger}`}
           selectedDateKey={selectedDateKey}
@@ -30,24 +29,30 @@ export const App: React.FC = () => {
           onDataResetOrSeed={handleDataResetOrSeed}
         />
 
-        {/* Hero Section: Desk Tracker (Top Centerpiece) */}
-        <DeskTrackerSection
-          key={`desk-tracker-${selectedDateKey}-${dataRefreshTrigger}`}
-          selectedDateKey={selectedDateKey}
-        />
+        {/* Main 12-Column Bento Grid */}
+        <main className="grid grid-cols-12 gap-3 flex-1 items-stretch">
+          {/* Left Column (5 Cols): Telemetry + Diagnostics Bento Cards */}
+          <div className="col-span-12 lg:col-span-5 flex flex-col gap-3">
+            {/* Card 1: Desk Telemetry Instrument */}
+            <DeskTrackerSection
+              key={`desk-tracker-${selectedDateKey}-${dataRefreshTrigger}`}
+              selectedDateKey={selectedDateKey}
+            />
 
-        {/* Middle Section: Two Clean Columns (Today & Tomorrow) */}
-        <DailyLogSection
-          key={`daily-log-${selectedDateKey}-${dataRefreshTrigger}`}
-          selectedDateKey={selectedDateKey}
-        />
+            {/* Card 2: Diagnostics & 14-Day Telemetry */}
+            <AnalyticsSection
+              key={`analytics-${selectedDateKey}-${dataRefreshTrigger}`}
+              selectedDateKey={selectedDateKey}
+              onSelectDateKey={setSelectedDateKey}
+            />
+          </div>
 
-        {/* Bottom Section: Minimalist Diagnostics */}
-        <AnalyticsSection
-          key={`analytics-${selectedDateKey}-${dataRefreshTrigger}`}
-          selectedDateKey={selectedDateKey}
-          onSelectDateKey={setSelectedDateKey}
-        />
+          {/* Right Column (7 Cols): Today & Tomorrow Execution Cards */}
+          <DailyLogSection
+            key={`daily-log-${selectedDateKey}-${dataRefreshTrigger}`}
+            selectedDateKey={selectedDateKey}
+          />
+        </main>
       </div>
     </div>
   );

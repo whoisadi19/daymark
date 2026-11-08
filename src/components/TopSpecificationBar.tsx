@@ -15,18 +15,15 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
   onSelectDateKey,
   onDataResetOrSeed,
 }) => {
-  // Live query for goals
   const goals = useLiveQuery(() => db.goals.toArray(), []);
-  const shortTermGoal = goals?.find(g => g.id === 'short_term');
-  const longTermGoal = goals?.find(g => g.id === 'long_term');
+  const shortTermGoal = goals?.find((g) => g.id === 'short_term');
+  const longTermGoal = goals?.find((g) => g.id === 'long_term');
 
-  // Live query for selected day's record (sleep times)
   const currentDayRecord = useLiveQuery(
     () => db.days.get(selectedDateKey),
     [selectedDateKey]
   );
 
-  // Sleep states
   const [sleepTime, setSleepTime] = useState<string>('');
   const [wakeTime, setWakeTime] = useState<string>('');
   const [isEditingSleep, setIsEditingSleep] = useState<boolean>(false);
@@ -41,7 +38,7 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
     }
   }, [currentDayRecord, selectedDateKey]);
 
-  // Goal inline edit state
+  // Goal inline editing state
   const [editingGoalId, setEditingGoalId] = useState<'short_term' | 'long_term' | null>(null);
   const [goalTitleInput, setGoalTitleInput] = useState<string>('');
   const [goalDateInput, setGoalDateInput] = useState<string>('');
@@ -49,7 +46,6 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
   const todayKey = getLocalDateKey();
   const isToday = selectedDateKey === todayKey;
 
-  // Date formatted: "Sun, Nov 8"
   const formattedDisplayDate = (() => {
     const [y, m, d] = selectedDateKey.split('-').map(Number);
     const dateObj = new Date(y, m - 1, d);
@@ -60,7 +56,6 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
     });
   })();
 
-  // Navigate Date
   const navigateDay = (offset: number) => {
     const [y, m, d] = selectedDateKey.split('-').map(Number);
     const current = new Date(y, m - 1, d);
@@ -68,7 +63,6 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
     onSelectDateKey(getLocalDateKey(current));
   };
 
-  // Sleep update handler
   const saveSleep = async (newSleep: string, newWake: string) => {
     const duration = calculateSleepMinutes(newSleep, newWake);
     const existing = await db.days.get(selectedDateKey);
@@ -83,9 +77,8 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
     });
   };
 
-  // Goal countdown calculations
   const calculateDaysRemaining = (targetDateStr: string | undefined): string => {
-    if (!targetDateStr) return 'no date';
+    if (!targetDateStr) return '0d';
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -94,9 +87,8 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
     target.setHours(0, 0, 0, 0);
 
     const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
-
-    if (diffDays > 0) return `${diffDays}d left`;
-    if (diffDays === 0) return 'due today';
+    if (diffDays > 0) return `${diffDays}d`;
+    if (diffDays === 0) return 'today';
     return `${Math.abs(diffDays)}d overdue`;
   };
 
@@ -120,189 +112,180 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
   const calculatedSleepMin = calculateSleepMinutes(sleepTime, wakeTime);
 
   return (
-    <header className="w-full space-y-3 pb-2 border-b border-divider">
-      {/* 1 Clean Row: Logo + Date Navigator (Left) & Inline Sleep + Settings (Right) */}
-      <div className="flex items-center justify-between">
-        {/* Left: Brand + Date Switcher */}
-        <div className="flex items-center gap-4">
-          <span className="font-semibold text-sm tracking-tight text-ink uppercase">
+    <header className="h-14 bg-[#FAF9F6] border border-[#DCD9D0] rounded-2xl px-4 md:px-5 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.03)] shrink-0">
+      {/* Left: Brand + Date Pill Switcher */}
+      <div className="flex items-center">
+        <div className="flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#E5391A] shrink-0" />
+          <span className="font-bold tracking-tight text-sm text-[#111110]">
             DAYMARK
           </span>
-
-          <div className="flex items-center gap-1.5 text-xs text-muted">
-            <button
-              onClick={() => navigateDay(-1)}
-              className="p-1 rounded hover:text-ink hover:bg-black/5 transition-colors"
-              title="Previous Day"
-              aria-label="Previous Day"
-            >
-              <ChevronLeft size={14} />
-            </button>
-            <span className="font-medium text-ink px-1">{formattedDisplayDate}</span>
-            <button
-              onClick={() => navigateDay(1)}
-              className="p-1 rounded hover:text-ink hover:bg-black/5 transition-colors"
-              title="Next Day"
-              aria-label="Next Day"
-            >
-              <ChevronRight size={14} />
-            </button>
-
-            {!isToday && (
-              <button
-                onClick={() => onSelectDateKey(todayKey)}
-                className="ml-1 text-[11px] px-2 py-0.5 rounded-full bg-black/5 text-muted hover:text-ink hover:bg-black/10 transition-colors"
-              >
-                Today
-              </button>
-            )}
-          </div>
         </div>
 
-        {/* Right: Inline Sleep Pill + Settings ⚙ */}
-        <div className="flex items-center gap-3">
-          {/* Clean Inline Sleep Pill */}
-          {!isEditingSleep ? (
-            <button
-              onClick={() => setIsEditingSleep(true)}
-              className="text-xs text-muted hover:text-ink flex items-center gap-1.5 px-2.5 py-1 rounded-full hover:bg-black/5 transition-colors"
-              title="Click to edit sleep hours"
-            >
-              <Moon size={12} className="text-muted" />
-              {sleepTime && wakeTime ? (
-                <span>
-                  Sleep <span className="font-mono text-ink">{sleepTime}</span> → <span className="font-mono text-ink">{wakeTime}</span>{' '}
-                  <span className="text-muted font-mono">({formatSleepDuration(calculatedSleepMin)})</span>
-                </span>
-              ) : (
-                <span className="text-subtle">+ Log sleep</span>
-              )}
-            </button>
-          ) : (
-            <div className="flex items-center gap-1.5 text-xs bg-white px-2.5 py-1 rounded-full border border-divider shadow-sm">
-              <span className="text-muted text-[11px]">Sleep</span>
-              <input
-                type="time"
-                value={sleepTime}
-                onChange={(e) => {
-                  setSleepTime(e.target.value);
-                  saveSleep(e.target.value, wakeTime);
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && setIsEditingSleep(false)}
-                className="bg-transparent font-mono text-xs text-ink outline-none"
-              />
-              <span className="text-muted">→</span>
-              <input
-                type="time"
-                value={wakeTime}
-                onChange={(e) => {
-                  setWakeTime(e.target.value);
-                  saveSleep(sleepTime, e.target.value);
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && setIsEditingSleep(false)}
-                className="bg-transparent font-mono text-xs text-ink outline-none"
-              />
-              <button
-                onClick={() => setIsEditingSleep(false)}
-                className="ml-1 text-muted hover:text-ink"
-                title="Done"
-              >
-                <Check size={12} />
-              </button>
-            </div>
-          )}
+        <div className="h-4 w-[1px] bg-[#DCD9D0] mx-3.5 hidden sm:block" />
 
-          {/* Settings Popover */}
-          <SettingsPopover
-            selectedDateKey={selectedDateKey}
-            onDataRefresh={onDataResetOrSeed}
-          />
+        <div className="bg-[#F2F0EA] rounded-lg px-2 py-1 text-xs font-medium flex items-center gap-1.5 text-[#111110]">
+          <button
+            onClick={() => navigateDay(-1)}
+            className="p-0.5 rounded hover:text-black hover:bg-black/5 transition-colors"
+            title="Previous Day"
+          >
+            <ChevronLeft size={13} />
+          </button>
+          <span className="px-1">{formattedDisplayDate}</span>
+          <button
+            onClick={() => navigateDay(1)}
+            className="p-0.5 rounded hover:text-black hover:bg-black/5 transition-colors"
+            title="Next Day"
+          >
+            <ChevronRight size={13} />
+          </button>
+          {!isToday && (
+            <button
+              onClick={() => onSelectDateKey(todayKey)}
+              className="ml-1 text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-white text-[#686660] hover:text-[#111110] border border-[#DCD9D0] transition-colors"
+            >
+              Today
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Sub-row: Clickable Text Goals Bar */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 text-xs text-muted">
-        {/* Short-term goal */}
+      {/* Center: Goals as Sleek Segmented Pills */}
+      <div className="hidden lg:flex items-center gap-2">
+        {/* Short Term Pill */}
         {editingGoalId === 'short_term' ? (
-          <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-md border border-divider shadow-sm">
+          <div className="flex items-center gap-1.5 bg-white border border-[#DCD9D0] rounded-lg px-2.5 py-1 text-xs shadow-sm">
             <input
               type="text"
               value={goalTitleInput}
               onChange={(e) => setGoalTitleInput(e.target.value)}
-              placeholder="Short-term milestone..."
-              className="bg-transparent text-ink text-xs outline-none w-48"
+              className="bg-transparent text-xs text-[#111110] outline-none w-36"
               autoFocus
             />
             <input
               type="date"
               value={goalDateInput}
               onChange={(e) => setGoalDateInput(e.target.value)}
-              className="bg-transparent font-mono text-[11px] text-muted outline-none"
+              className="bg-transparent font-mono text-[11px] text-[#686660] outline-none"
             />
-            <button onClick={handleSaveGoal} className="text-vermilion hover:opacity-80">
+            <button onClick={handleSaveGoal} className="text-[#E5391A]">
               <Check size={13} />
             </button>
-            <button onClick={() => setEditingGoalId(null)} className="text-muted hover:text-ink">
+            <button onClick={() => setEditingGoalId(null)} className="text-[#9E9B93]">
               <X size={13} />
             </button>
           </div>
         ) : (
           <button
             onClick={() => handleStartEditGoal(shortTermGoal, 'short_term')}
-            className="group flex items-center gap-1.5 hover:text-ink transition-colors text-left"
+            className="bg-[#F2F0EA] hover:bg-[#EAE7DF] transition rounded-lg px-3 py-1 text-xs text-[#686660] flex items-center gap-2"
             title="Click to edit short-term goal"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-vermilion inline-block" />
-            <span>Short-term:</span>
-            <span className="text-ink font-medium underline decoration-transparent group-hover:decoration-muted underline-offset-2 transition-all">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#E5391A]" />
+            <span className="text-[#111110] font-medium max-w-[150px] truncate">
               {shortTermGoal?.title || 'Ship Core Prototype'}
             </span>
-            <span className="text-muted font-mono text-[11px]">
-              · {calculateDaysRemaining(shortTermGoal?.targetDate)}
+            <span className="font-mono text-[10px] bg-[#111110] text-white px-1.5 py-0.2 rounded font-semibold">
+              {calculateDaysRemaining(shortTermGoal?.targetDate)}
             </span>
           </button>
         )}
 
-        {/* Long-term goal */}
+        {/* Long Term Pill */}
         {editingGoalId === 'long_term' ? (
-          <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-md border border-divider shadow-sm">
+          <div className="flex items-center gap-1.5 bg-white border border-[#DCD9D0] rounded-lg px-2.5 py-1 text-xs shadow-sm">
             <input
               type="text"
               value={goalTitleInput}
               onChange={(e) => setGoalTitleInput(e.target.value)}
-              placeholder="Long-term vision..."
-              className="bg-transparent text-ink text-xs outline-none w-48"
+              className="bg-transparent text-xs text-[#111110] outline-none w-36"
               autoFocus
             />
             <input
               type="date"
               value={goalDateInput}
               onChange={(e) => setGoalDateInput(e.target.value)}
-              className="bg-transparent font-mono text-[11px] text-muted outline-none"
+              className="bg-transparent font-mono text-[11px] text-[#686660] outline-none"
             />
-            <button onClick={handleSaveGoal} className="text-vermilion hover:opacity-80">
+            <button onClick={handleSaveGoal} className="text-[#E5391A]">
               <Check size={13} />
             </button>
-            <button onClick={() => setEditingGoalId(null)} className="text-muted hover:text-ink">
+            <button onClick={() => setEditingGoalId(null)} className="text-[#9E9B93]">
               <X size={13} />
             </button>
           </div>
         ) : (
           <button
             onClick={() => handleStartEditGoal(longTermGoal, 'long_term')}
-            className="group flex items-center gap-1.5 hover:text-ink transition-colors text-left"
+            className="bg-[#F2F0EA] hover:bg-[#EAE7DF] transition rounded-lg px-3 py-1 text-xs text-[#686660] flex items-center gap-2"
             title="Click to edit long-term goal"
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-muted/60 inline-block" />
-            <span>Long-term:</span>
-            <span className="text-ink font-medium underline decoration-transparent group-hover:decoration-muted underline-offset-2 transition-all">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#686660]" />
+            <span className="text-[#111110] font-medium max-w-[150px] truncate">
               {longTermGoal?.title || 'Production Telemetry Suite'}
             </span>
-            <span className="text-muted font-mono text-[11px]">
-              · {calculateDaysRemaining(longTermGoal?.targetDate)}
+            <span className="font-mono text-[10px] bg-[#686660] text-white px-1.5 py-0.2 rounded font-semibold">
+              {calculateDaysRemaining(longTermGoal?.targetDate)}
             </span>
           </button>
         )}
+      </div>
+
+      {/* Right: Sleep Pill + Settings Popover */}
+      <div className="flex items-center gap-2">
+        {!isEditingSleep ? (
+          <button
+            onClick={() => setIsEditingSleep(true)}
+            className="bg-[#F2F0EA] hover:bg-[#EAE7DF] transition rounded-lg px-3 py-1 text-xs font-medium text-[#111110] flex items-center gap-2"
+            title="Click to edit sleep hours"
+          >
+            <Moon size={12} className="text-[#686660]" />
+            {sleepTime && wakeTime ? (
+              <span>
+                {sleepTime} → {wakeTime} <span className="text-[#686660] font-mono text-[11px]">({formatSleepDuration(calculatedSleepMin)})</span>
+              </span>
+            ) : (
+              <span className="text-[#686660]">+ Sleep</span>
+            )}
+          </button>
+        ) : (
+          <div className="flex items-center gap-1.5 text-xs bg-white px-2.5 py-1 rounded-lg border border-[#DCD9D0] shadow-sm">
+            <input
+              type="time"
+              value={sleepTime}
+              onChange={(e) => {
+                setSleepTime(e.target.value);
+                saveSleep(e.target.value, wakeTime);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && setIsEditingSleep(false)}
+              className="bg-transparent font-mono text-xs text-[#111110] outline-none"
+            />
+            <span className="text-[#686660]">→</span>
+            <input
+              type="time"
+              value={wakeTime}
+              onChange={(e) => {
+                setWakeTime(e.target.value);
+                saveSleep(sleepTime, e.target.value);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && setIsEditingSleep(false)}
+              className="bg-transparent font-mono text-xs text-[#111110] outline-none"
+            />
+            <button
+              onClick={() => setIsEditingSleep(false)}
+              className="text-[#686660] hover:text-[#111110]"
+              title="Done"
+            >
+              <Check size={12} />
+            </button>
+          </div>
+        )}
+
+        <SettingsPopover
+          selectedDateKey={selectedDateKey}
+          onDataRefresh={onDataResetOrSeed}
+        />
       </div>
     </header>
   );

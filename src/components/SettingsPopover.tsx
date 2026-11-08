@@ -17,7 +17,6 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   const popoverRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
@@ -89,7 +88,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
     <div className="relative" ref={popoverRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-8 h-8 flex items-center justify-center rounded text-muted hover:text-ink hover:bg-black/5 transition-colors"
+        className="w-8 h-8 flex items-center justify-center rounded-lg text-[#686660] hover:text-[#111110] hover:bg-[#F2F0EA] transition-colors"
         title="Settings & Tools"
         aria-label="Settings"
       >
@@ -97,42 +96,42 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-white border border-divider shadow-lg rounded-lg py-1.5 z-50 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
-          <div className="flex items-center justify-between px-3 py-1.5 border-b border-divider/60 text-muted">
-            <span className="font-medium text-[11px] tracking-normal">Preferences & Data</span>
+        <div className="absolute right-0 mt-2 w-60 bg-[#FAF9F6] border border-[#DCD9D0] shadow-xl rounded-2xl py-2 z-50 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
+          <div className="flex items-center justify-between px-3.5 py-1.5 border-b border-[#DCD9D0] text-[#686660]">
+            <span className="font-semibold text-xs text-[#111110]">Settings & Data</span>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-muted hover:text-ink"
+              className="text-[#9E9B93] hover:text-[#111110]"
             >
-              <X size={12} />
+              <X size={13} />
             </button>
           </div>
 
           <div className="py-1">
             <button
               onClick={toggleSound}
-              className="w-full flex items-center justify-between px-3 py-2 hover:bg-black/5 text-ink transition-colors"
+              className="w-full flex items-center justify-between px-3.5 py-2 hover:bg-[#F2F0EA] text-[#111110] transition-colors"
             >
               <span className="flex items-center gap-2">
-                {soundEnabled ? <Volume2 size={13} className="text-ink" /> : <VolumeX size={13} className="text-muted" />}
+                {soundEnabled ? <Volume2 size={13} className="text-[#111110]" /> : <VolumeX size={13} className="text-[#9E9B93]" />}
                 <span>Sound Feedback</span>
               </span>
-              <span className="text-[10px] text-muted font-mono">{soundEnabled ? 'ON' : 'OFF'}</span>
+              <span className="text-[10px] text-[#686660] font-mono">{soundEnabled ? 'ON' : 'OFF'}</span>
             </button>
 
             <button
               onClick={handleBackup}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-black/5 text-ink transition-colors"
+              className="w-full flex items-center gap-2 px-3.5 py-2 hover:bg-[#F2F0EA] text-[#111110] transition-colors"
             >
-              <Download size={13} className="text-muted" />
+              <Download size={13} className="text-[#686660]" />
               <span>Backup Data (.json)</span>
             </button>
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-black/5 text-ink transition-colors"
+              className="w-full flex items-center gap-2 px-3.5 py-2 hover:bg-[#F2F0EA] text-[#111110] transition-colors"
             >
-              <Upload size={13} className="text-muted" />
+              <Upload size={13} className="text-[#686660]" />
               <span>Restore Data (.json)</span>
             </button>
             <input
@@ -144,18 +143,18 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
             />
           </div>
 
-          <div className="border-t border-divider/60 py-1">
+          <div className="border-t border-[#DCD9D0] py-1">
             <button
               onClick={handleSeed}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-black/5 text-ink transition-colors"
+              className="w-full flex items-center gap-2 px-3.5 py-2 hover:bg-[#F2F0EA] text-[#111110] transition-colors"
             >
-              <RefreshCw size={13} className="text-muted" />
+              <RefreshCw size={13} className="text-[#686660]" />
               <span>Seed 7-Day Demo Data</span>
             </button>
 
             <button
               onClick={handleClear}
-              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-red-50 text-red-600 transition-colors"
+              className="w-full flex items-center gap-2 px-3.5 py-2 hover:bg-[#FFF5F2] text-[#E5391A] transition-colors"
             >
               <Trash2 size={13} />
               <span>Reset All Data</span>
@@ -166,4 +165,3 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
     </div>
   );
 };
-

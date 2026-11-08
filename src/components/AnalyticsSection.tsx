@@ -64,8 +64,9 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
   const maxSessionHours = Math.max(8, ...barcodeData.map((d) => d.totalHours));
   const activeHoverData = barcodeData.find((d) => d.dateKey === hoveredBarcodeDay);
 
-  // 3. Sleep vs. Focus Efficiency (Last 7 Days)
-  const sleepCorrelationRows = past7Keys.map((dKey) => {
+  // 3. Sleep vs. Focus Efficiency (4-Row Mini Table)
+  const recent4Keys = past7Keys.slice(-4);
+  const recentSleepRows = recent4Keys.map((dKey) => {
     const day = dayMap.get(dKey);
     const [y, m, d] = dKey.split('-').map(Number);
     const dayLabel = new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'narrow', day: 'numeric' });
@@ -82,155 +83,137 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
   });
 
   return (
-    <section className="border-t border-[#E6E4DD] pt-8 space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* ============================================================== */}
-        {/* BLOCK 1: COMPLETION RATE */}
-        {/* ============================================================== */}
-        <div className="space-y-4">
-          <span className="block text-[11px] font-medium tracking-wider text-muted uppercase">
-            Task Completion
+    <section className="bg-[#FAF9F6] border border-[#DCD9D0] rounded-2xl p-6 shadow-[0_1px_2px_rgba(0,0,0,0.03)] flex-1 flex flex-col justify-between">
+      {/* Top: 14-Day Focus vs. Drift inside Recessed Well */}
+      <div>
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-[#686660] font-medium">
+            14-Day Focus vs. Drift
           </span>
+          {activeHoverData ? (
+            <span className="font-mono text-[11px] text-[#111110] font-medium">
+              {activeHoverData.dateKey}: {activeHoverData.focusedHours.toFixed(1)}h focus · {activeHoverData.distractedHours.toFixed(1)}h drift
+            </span>
+          ) : (
+            <div className="flex items-center gap-2.5 text-[10px] font-mono text-[#686660]">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#E5391A]" /> Focus
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" /> Drift
+              </span>
+            </div>
+          )}
+        </div>
 
+        {/* Recessed Well with 14 Full-Height Architectural Vertical Tracks */}
+        <div className="bg-[#F2F0EA] border border-[#E5E2D9] rounded-xl p-3.5 h-36 flex items-end justify-between gap-1.5">
+          {barcodeData.map((d) => {
+            const focusedPct = (d.focusedHours / maxSessionHours) * 100;
+            const distractedPct = (d.distractedHours / maxSessionHours) * 100;
+            const isSelected = d.dateKey === selectedDateKey;
+
+            return (
+              <div
+                key={d.dateKey}
+                onClick={() => onSelectDateKey?.(d.dateKey)}
+                onMouseEnter={() => setHoveredBarcodeDay(d.dateKey)}
+                onMouseLeave={() => setHoveredBarcodeDay(null)}
+                className="flex-1 flex flex-col items-center justify-end h-full group cursor-pointer"
+                title={`${d.dateKey}: ${d.focusedHours.toFixed(1)}h focus, ${d.distractedHours.toFixed(1)}h drift`}
+              >
+                {/* Full-Height Vertical Architectural Track */}
+                <div
+                  className={`w-full h-full rounded-md relative overflow-hidden flex flex-col justify-end transition-all ${
+                    isSelected
+                      ? 'ring-1 ring-[#111110] bg-[#E2DFD4]'
+                      : 'bg-[#E5E2D9] group-hover:bg-[#DDD9CE]'
+                  }`}
+                >
+                  {/* Distracted Segment on Top */}
+                  {distractedPct > 0 && (
+                    <div
+                      className="w-full bg-[#D97706] rounded-t-sm"
+                      style={{ height: `${distractedPct}%` }}
+                    />
+                  )}
+                  {/* Focused Segment on Bottom */}
+                  {focusedPct > 0 && (
+                    <div
+                      className={`w-full bg-[#E5391A] ${distractedPct === 0 ? 'rounded-t-sm' : ''}`}
+                      style={{ height: `${focusedPct}%` }}
+                    />
+                  )}
+                </div>
+
+                {/* Day Number */}
+                <span
+                  className={`mt-1 font-mono text-[9px] ${
+                    isSelected ? 'text-[#111110] font-bold' : 'text-[#9E9B93] group-hover:text-[#111110]'
+                  }`}
+                >
+                  {d.dayNumber}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Bottom: 2-Column Mini Bento inside Card */}
+      <div className="grid grid-cols-2 gap-3 pt-4">
+        {/* Left Well: Checkbox Rate */}
+        <div className="bg-[#F2F0EA] border border-[#E5E2D9] rounded-xl p-3.5 flex flex-col justify-between">
           <div>
-            <div className="flex items-baseline justify-between mb-1.5">
-              <span className="text-xs text-ink font-medium">Today</span>
-              <span className="font-mono text-2xl font-light text-ink tabular-nums">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-[#686660] font-medium block mb-1">
+              Checkbox Rate
+            </span>
+            <div className="flex items-baseline justify-between">
+              <span className="text-3xl font-semibold tracking-tight text-[#111110] tabular-nums">
                 {todayRate}%
               </span>
-            </div>
-            {/* Simple thin horizontal progress bar */}
-            <div className="h-1.5 w-full bg-[#E6E4DD] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-ink transition-all duration-300 rounded-full"
-                style={{ width: `${todayRate}%` }}
-              />
+              <span className="text-[11px] font-mono text-[#686660]">
+                7d: {past7Rate}%
+              </span>
             </div>
           </div>
 
-          <div className="pt-1">
-            <div className="flex items-baseline justify-between mb-1.5">
-              <span className="text-xs text-muted">7-Day Average</span>
-              <span className="font-mono text-sm text-muted tabular-nums">
-                {past7Rate}%
-              </span>
-            </div>
-            <div className="h-1.5 w-full bg-[#E6E4DD] rounded-full overflow-hidden">
-              <div
-                className="h-full bg-muted transition-all duration-300 rounded-full"
-                style={{ width: `${past7Rate}%` }}
-              />
-            </div>
+          <div className="h-1.5 w-full bg-[#E5E2D9] rounded-full overflow-hidden mt-3">
+            <div
+              className="h-full bg-[#111110] rounded-full transition-all duration-300"
+              style={{ width: `${todayRate}%` }}
+            />
           </div>
         </div>
 
-        {/* ============================================================== */}
-        {/* BLOCK 2: 14-DAY FOCUS VS. DRIFT (MINIMAL STACKED BARS) */}
-        {/* ============================================================== */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="block text-[11px] font-medium tracking-wider text-muted uppercase">
-              14-Day Focus vs. Drift
-            </span>
-            {activeHoverData && (
-              <span className="font-mono text-[11px] text-ink">
-                {activeHoverData.focusedHours.toFixed(1)}h / {activeHoverData.totalHours.toFixed(1)}h
-              </span>
-            )}
-          </div>
-
-          {/* Minimal Vertical Stacked Bar Chart */}
-          <div className="h-24 flex items-end justify-between gap-1.5 pt-2">
-            {barcodeData.map((d) => {
-              const focusedPct = (d.focusedHours / maxSessionHours) * 100;
-              const distractedPct = (d.distractedHours / maxSessionHours) * 100;
-              const isSelected = d.dateKey === selectedDateKey;
-
-              return (
-                <div
-                  key={d.dateKey}
-                  onClick={() => onSelectDateKey?.(d.dateKey)}
-                  onMouseEnter={() => setHoveredBarcodeDay(d.dateKey)}
-                  onMouseLeave={() => setHoveredBarcodeDay(null)}
-                  className="flex-1 flex flex-col items-center justify-end h-full group cursor-pointer"
-                  title={`${d.dateKey}: ${d.focusedHours.toFixed(1)}h focus, ${d.distractedHours.toFixed(1)}h drift`}
-                >
-                  {/* Bar stack: distracted on top, focused on bottom */}
-                  <div className="w-1.5 sm:w-2 flex flex-col justify-end h-full">
-                    {distractedPct > 0 && (
-                      <div
-                        className="w-full bg-[#D99B26] rounded-t-sm"
-                        style={{ height: `${distractedPct}%` }}
-                      />
-                    )}
-                    {focusedPct > 0 && (
-                      <div
-                        className={`w-full bg-[#E04F33] ${distractedPct === 0 ? 'rounded-t-sm' : ''} rounded-b-sm`}
-                        style={{ height: `${focusedPct}%` }}
-                      />
-                    )}
-                    {focusedPct === 0 && distractedPct === 0 && (
-                      <div className="w-full h-1 bg-[#E6E4DD] rounded-full" />
-                    )}
-                  </div>
-
-                  {/* Day label */}
-                  <span
-                    className={`mt-2 font-mono text-[9px] ${
-                      isSelected ? 'text-ink font-bold' : 'text-muted/60 group-hover:text-ink'
-                    }`}
-                  >
-                    {d.dayNumber}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center justify-between text-[10px] text-muted pt-0.5">
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#E04F33]" /> Focus
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#D99B26]" /> Drift
-            </span>
-          </div>
-        </div>
-
-        {/* ============================================================== */}
-        {/* BLOCK 3: SLEEP VS. FOCUS EFFICIENCY (MINI-LIST) */}
-        {/* ============================================================== */}
-        <div className="space-y-4">
-          <span className="block text-[11px] font-medium tracking-wider text-muted uppercase">
-            Sleep vs. Efficiency (7d)
+        {/* Right Well: Sleep vs. Efficiency Mini Table */}
+        <div className="bg-[#F2F0EA] border border-[#E5E2D9] rounded-xl p-3.5 flex flex-col justify-between">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-[#686660] font-medium block mb-1">
+            Sleep vs Efficiency
           </span>
 
-          <div className="space-y-1.5">
-            {sleepCorrelationRows.map((row) => (
-              <div
-                key={row.dateKey}
-                className="flex items-center justify-between text-xs py-0.5"
-              >
-                <span className="font-mono text-muted text-[11px] w-8">
-                  {row.dayLabel}
-                </span>
-
-                <span className="font-mono text-ink text-[11px] w-12 text-center">
+          <div className="space-y-1">
+            {recentSleepRows.map((row) => (
+              <div key={row.dateKey} className="flex items-center justify-between text-[11px] font-mono py-0.2">
+                <span className="text-[#686660] w-6">{row.dayLabel}</span>
+                <span className="text-[#111110] font-medium w-9 text-center">
                   {row.sleepHours !== null ? `${row.sleepHours}h` : '—'}
                 </span>
-
-                <div className="flex-1 mx-3 h-1 bg-[#E6E4DD] rounded-full overflow-hidden">
+                <div className="flex-1 mx-2 h-1 bg-[#E5E2D9] rounded-full overflow-hidden">
                   {row.efficiency !== null && (
                     <div
                       className={`h-full rounded-full ${
-                        row.efficiency >= 75 ? 'bg-ink' : row.efficiency >= 50 ? 'bg-[#D99B26]' : 'bg-[#E04F33]'
+                        row.efficiency >= 75
+                          ? 'bg-[#111110]'
+                          : row.efficiency >= 50
+                          ? 'bg-[#D97706]'
+                          : 'bg-[#E5391A]'
                       }`}
                       style={{ width: `${row.efficiency}%` }}
                     />
                   )}
                 </div>
-
-                <span className="font-mono text-[11px] text-ink w-8 text-right">
+                <span className="text-[#111110] font-medium w-7 text-right">
                   {row.efficiency !== null ? `${row.efficiency}%` : '—'}
                 </span>
               </div>
