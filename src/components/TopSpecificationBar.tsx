@@ -53,7 +53,7 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
       <div className="flex items-center gap-2.5">
         <span className="w-2 h-2 rounded-full bg-[#D71921] shadow-[0_0_10px_#D71921]" />
         <span className="font-mono font-bold text-xs tracking-wider text-white">
-          DAYMARK<span className="text-white/30 hidden sm:inline"> // MK3</span>
+          DAYMARK
         </span>
       </div>
 

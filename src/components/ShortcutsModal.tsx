@@ -63,3 +63,4 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ onClose }) => {
     </div>
   );
 };
+
