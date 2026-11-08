@@ -14,14 +14,14 @@
       {
         "label": "main",
         "title": "DAYMARK",
-        "width": 960,
-        "height": 680,
+        "width": 900,
+        "height": 640,
         "center": true,
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
-        "shadow": true,
-        "backgroundColor": "#0A0A0C"
+        "transparent": true,
+        "shadow": true
       }
     ],
     "security": {

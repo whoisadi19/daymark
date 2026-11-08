@@ -46,9 +46,10 @@ export const App: React.FC = () => {
     });
   };
 
+  // Immediate window resizing on initial mount
   useEffect(() => {
     resizeNativeWindowForMode(isWidgetMode);
-  }, []);
+  }, [isWidgetMode]);
 
   // Shared Desk Timer for top bar live pill, tracker tab, and widget view
   const deskTimer = useDeskTimer(selectedDateKey);
@@ -87,51 +88,42 @@ export const App: React.FC = () => {
   }, []);
 
   // ==============================================================
-  // COMPACT FLOATING WIDGET VIEWPORT (380px x 420px)
+  // COMPACT FLOATING WIDGET VIEWPORT (380px x 460px)
+  // ZERO MARGIN, EDGE-TO-EDGE ROUNDED SHELL
   // ==============================================================
   if (isWidgetMode) {
     return (
-      <div className="min-h-screen bg-[#0A0A0C] text-[#F2F2F4] relative selection:bg-[#D71921] selection:text-white font-sans overflow-x-hidden flex flex-col items-center justify-center p-3 sm:p-6">
-        {/* Atmospheric Ambient Glow behind widget */}
-        <div className="fixed inset-0 -z-10 bg-[#0A0A0C] overflow-hidden pointer-events-none">
-          <div className="w-[300px] h-[300px] rounded-full bg-[#D71921]/15 blur-[90px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-        </div>
-
+      <div className="w-screen h-screen overflow-hidden bg-transparent m-0 p-0 select-none">
         <WidgetView
           selectedDateKey={selectedDateKey}
           timer={deskTimer}
           onExitWidgetMode={toggleWidgetMode}
         />
-
         {isShortcutsOpen && <ShortcutsModal onClose={() => setIsShortcutsOpen(false)} />}
       </div>
     );
   }
 
   // ==============================================================
-  // FULL 3-TAB APPLICATION VIEWPORT
+  // FULL 3-TAB APPLICATION VIEWPORT (900px x 640px)
+  // ZERO BLACK MARGIN, TRANSLUCENT SMOKED FROSTED GLASS SHELL
   // ==============================================================
   return (
-    <div className="min-h-screen bg-[#0A0A0C] text-[#F2F2F4] relative selection:bg-[#D71921] selection:text-white font-sans overflow-x-hidden flex flex-col">
+    <div className="w-screen h-screen rounded-[28px] overflow-hidden bg-[#121216]/75 backdrop-blur-2xl border border-white/20 shadow-2xl text-[#F2F2F4] relative selection:bg-[#D71921] selection:text-white font-sans flex flex-col p-4 sm:p-5 select-none box-border">
       {/* ============================================================== */}
-      {/* ATMOSPHERIC FROSTED WALLPAPER CANVAS (BACKGROUND LAYER) */}
+      {/* VIBRANT AMBIENT LIGHT ORBS (MAKES FROSTED GLASS TRULY POP) */}
       {/* ============================================================== */}
-      <div className="fixed inset-0 -z-10 bg-[#0A0A0C] overflow-hidden pointer-events-none">
-        {/* Soft, blurred monochrome geometric capsule in center */}
-        <div className="w-[420px] h-[520px] rounded-full bg-white/[0.04] blur-3xl absolute top-1/4 left-1/3 -translate-x-1/2 -translate-y-1/2" />
-
-        {/* Subtle Nothing Crimson ambient glow sphere near center-right */}
-        <div className="w-[280px] h-[280px] rounded-full bg-[#D71921]/20 blur-[100px] absolute top-1/3 right-1/4 pointer-events-none" />
-
-        {/* Fluted glass vertical scanline texture */}
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.012)_1px,transparent_1px)] bg-[size:12px_100%] pointer-events-none opacity-80" />
-      </div>
+      <div className="w-[360px] h-[360px] rounded-full bg-[#D71921]/35 blur-[70px] absolute top-10 right-10 pointer-events-none" />
+      <div className="w-[380px] h-[380px] rounded-full bg-white/15 blur-[80px] absolute -bottom-10 -left-10 pointer-events-none" />
+      <div className="w-[280px] h-[280px] rounded-full bg-white/10 blur-[60px] absolute top-1/3 left-1/3 pointer-events-none" />
+      {/* Subtle fluted glass scanline texture */}
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.015)_1px,transparent_1px)] bg-[size:10px_100%] pointer-events-none opacity-80" />
 
       {/* ============================================================== */}
-      {/* MAIN CONTAINER (MAX 760PX AIRY BENTO COLUMN) */}
+      {/* MAIN CONTAINER (FITS 900x640 WINDOW WITH ZERO OVERFLOW) */}
       {/* ============================================================== */}
-      <div className="max-w-[760px] mx-auto w-full min-h-screen flex flex-col justify-between py-6 px-4 sm:py-8 sm:px-5 relative z-10 gap-6">
-        {/* Top Minimal Status Pill Bar */}
+      <div className="w-full h-full flex flex-col justify-between relative z-10 gap-3 max-w-[820px] mx-auto overflow-hidden">
+        {/* Top Minimal Status Pill Bar (Draggable on Linux) */}
         <TopSpecificationBar
           key={`top-bar-${dataRefreshTrigger}`}
           selectedDateKey={selectedDateKey}
@@ -150,7 +142,7 @@ export const App: React.FC = () => {
         {/* ============================================================== */}
         {/* STRICT 3-TAB CONTENT AREA (ONLY ONE VIEW VISIBLE AT A TIME) */}
         {/* ============================================================== */}
-        <main className="flex-1 flex flex-col justify-center my-auto w-full">
+        <main className="flex-1 flex flex-col justify-center my-auto w-full overflow-hidden">
           {activeTab === 'reflection' && (
             <DailyLogSection
               key={`daily-log-${selectedDateKey}-${dataRefreshTrigger}`}
@@ -178,15 +170,15 @@ export const App: React.FC = () => {
         {/* ============================================================== */}
         {/* BOTTOM NOTHING OS FLOATING PILL DOCK */}
         {/* ============================================================== */}
-        <nav className="w-full flex justify-center sticky bottom-4 z-40 pt-2">
-          <div className="bg-[#161618]/85 backdrop-blur-2xl border border-white/10 rounded-full p-1.5 shadow-[0_20px_50px_rgba(0,0,0,0.7)] flex items-center gap-1">
+        <nav className="w-full flex justify-center shrink-0 pt-1 pb-1">
+          <div className="bg-white/[0.08] backdrop-blur-2xl border border-white/20 rounded-full p-1 shadow-[0_15px_35px_rgba(0,0,0,0.6)] flex items-center gap-1">
             {/* Tab 1: 01 · Reflection */}
             <button
               onClick={() => setActiveTab('reflection')}
-              className={`rounded-full px-4 py-2 text-xs transition-all duration-200 select-none ${
+              className={`rounded-full px-4 py-1.5 text-xs transition-all duration-200 select-none cursor-pointer ${
                 activeTab === 'reflection'
                   ? 'bg-[#ECECEF] text-[#0A0A0C] font-semibold shadow-sm'
-                  : 'text-white/60 hover:text-white hover:bg-white/[0.06]'
+                  : 'text-white/70 hover:text-white hover:bg-white/[0.08]'
               }`}
             >
               <span className="font-mono mr-1">01</span>
@@ -196,10 +188,10 @@ export const App: React.FC = () => {
             {/* Tab 2: 02 · Tracker */}
             <button
               onClick={() => setActiveTab('tracker')}
-              className={`rounded-full px-4 py-2 text-xs transition-all duration-200 select-none flex items-center gap-1.5 ${
+              className={`rounded-full px-4 py-1.5 text-xs transition-all duration-200 select-none flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'tracker'
                   ? 'bg-[#ECECEF] text-[#0A0A0C] font-semibold shadow-sm'
-                  : 'text-white/60 hover:text-white hover:bg-white/[0.06]'
+                  : 'text-white/70 hover:text-white hover:bg-white/[0.08]'
               }`}
             >
               <span className="font-mono">02</span>
@@ -218,10 +210,10 @@ export const App: React.FC = () => {
             {/* Tab 3: 03 · Analytics */}
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`rounded-full px-4 py-2 text-xs transition-all duration-200 select-none ${
+              className={`rounded-full px-4 py-1.5 text-xs transition-all duration-200 select-none cursor-pointer ${
                 activeTab === 'analytics'
                   ? 'bg-[#ECECEF] text-[#0A0A0C] font-semibold shadow-sm'
-                  : 'text-white/60 hover:text-white hover:bg-white/[0.06]'
+                  : 'text-white/70 hover:text-white hover:bg-white/[0.08]'
               }`}
             >
               <span className="font-mono mr-1">03</span>
