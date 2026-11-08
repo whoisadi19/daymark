@@ -52,7 +52,7 @@ export function useDailyRollover(todayDateKey = getLocalDateKey()) {
 
       const newPromotedTasks: TaskItem[] = [];
 
-      // 1. Promote "What I will do tomorrow" items into Today's checklist
+      // 1. Promote yesterday's "Tomorrow" items into today's execution list
       for (const item of prevTomorrowTasks) {
         if (!existingTitles.has(item.title.trim().toLowerCase())) {
           newPromotedTasks.push({
@@ -64,13 +64,14 @@ export function useDailyRollover(todayDateKey = getLocalDateKey()) {
             completedAt: null,
             rolloverCount: item.rolloverCount || 0,
             linkedToGoal: item.linkedToGoal || false,
+            focusedSeconds: item.focusedSeconds || 0,
             updatedAt: Date.now(),
           });
           existingTitles.add(item.title.trim().toLowerCase());
         }
       }
 
-      // 2. Promote uncompleted tasks from yesterday with incremented rolloverCount
+      // 2. Promote yesterday's uncompleted "Today" items with incremented rollover count
       for (const item of prevUncompletedTodayTasks) {
         if (!existingTitles.has(item.title.trim().toLowerCase())) {
           newPromotedTasks.push({
@@ -82,6 +83,7 @@ export function useDailyRollover(todayDateKey = getLocalDateKey()) {
             completedAt: null,
             rolloverCount: (item.rolloverCount || 0) + 1,
             linkedToGoal: item.linkedToGoal || false,
+            focusedSeconds: item.focusedSeconds || 0,
             updatedAt: Date.now(),
           });
           existingTitles.add(item.title.trim().toLowerCase());
@@ -116,6 +118,7 @@ export function useDailyRollover(todayDateKey = getLocalDateKey()) {
       completedAt: null,
       rolloverCount: 0,
       linkedToGoal,
+      focusedSeconds: 0,
       updatedAt: Date.now(),
     };
 
@@ -128,7 +131,6 @@ export function useDailyRollover(todayDateKey = getLocalDateKey()) {
     const trimmed = title.trim();
     if (!trimmed) return false;
 
-    // Check count for tomorrow
     const currentCount = await db.tasks
       .where('dateKey')
       .equals(todayDateKey)
@@ -148,6 +150,7 @@ export function useDailyRollover(todayDateKey = getLocalDateKey()) {
       completedAt: null,
       rolloverCount: 0,
       linkedToGoal,
+      focusedSeconds: 0,
       updatedAt: Date.now(),
     };
 
@@ -156,7 +159,7 @@ export function useDailyRollover(todayDateKey = getLocalDateKey()) {
     return true;
   }, [todayDateKey]);
 
-  // Toggle Checkbox: stamps with completion time [DONE 14:22]
+  // Toggle Checkbox: stamps with completion time [14:22]
   const toggleTask = useCallback(async (id: string) => {
     const task = await db.tasks.get(id);
     if (!task) return;
@@ -208,4 +211,3 @@ export function useDailyRollover(todayDateKey = getLocalDateKey()) {
     triggerManualRollover: performRollover,
   };
 }
-

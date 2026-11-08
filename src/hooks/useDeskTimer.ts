@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { db, getLocalDateKey, DeskSession } from '../db/db';
 import { soundEngine } from '../utils/audio';
 
-const STORAGE_KEY = 'daymark_active_desk_session_v1';
+const STORAGE_KEY = 'daymark_active_desk_session_v2';
+const ACTIVE_TASK_STORAGE_KEY = 'daymark_active_task_id_v2';
 
 export interface ActiveSessionState {
   id: string;
@@ -12,6 +13,7 @@ export interface ActiveSessionState {
   accumulatedFocusedMs: number;
   accumulatedDistractedMs: number;
   currentState: 'focused' | 'distracted';
+  activeTaskId?: string | null;
 }
 
 export interface CalibrationData {
@@ -37,6 +39,14 @@ export function useDeskTimer(selectedDateKey: string) {
     return null;
   });
 
+  const [activeTaskId, setActiveTaskIdState] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(ACTIVE_TASK_STORAGE_KEY) || null;
+    } catch {
+      return null;
+    }
+  });
+
   const [tick, setTick] = useState<number>(Date.now());
   const [showCalibrationModal, setShowCalibrationModal] = useState<boolean>(false);
   const [calibrationData, setCalibrationData] = useState<CalibrationData | null>(null);
@@ -45,9 +55,26 @@ export function useDeskTimer(selectedDateKey: string) {
   const [completedTodayFocusedSec, setCompletedTodayFocusedSec] = useState<number>(0);
   const [completedTodayDistractedSec, setCompletedTodayDistractedSec] = useState<number>(0);
 
-  // Ref to hold activeSession for spacebar listener without re-binding listener
+  // Refs to hold current values for background loops
   const activeSessionRef = useRef<ActiveSessionState | null>(activeSession);
   activeSessionRef.current = activeSession;
+
+  const activeTaskIdRef = useRef<string | null>(activeTaskId);
+  activeTaskIdRef.current = activeTaskId;
+
+  // Set active task id
+  const setActiveTaskId = useCallback((id: string | null) => {
+    setActiveTaskIdState(id);
+    if (id) {
+      localStorage.setItem(ACTIVE_TASK_STORAGE_KEY, id);
+    } else {
+      localStorage.removeItem(ACTIVE_TASK_STORAGE_KEY);
+    }
+    if (activeSessionRef.current) {
+      activeSessionRef.current.activeTaskId = id;
+      setActiveSession({ ...activeSessionRef.current, activeTaskId: id });
+    }
+  }, []);
 
   // Query completed sessions for the selected date
   const refreshCompletedDayTotals = useCallback(async (dateKey: string) => {
@@ -93,9 +120,11 @@ export function useDeskTimer(selectedDateKey: string) {
     }
   }, [activeSession]);
 
-  // Periodic persistence of active session to Dexie (every 5 seconds)
+  // Periodic persistence of active session to Dexie and task time attribution (every 3 seconds)
   useEffect(() => {
     if (!activeSession) return;
+
+    let lastTaskSyncTime = Date.now();
 
     const syncInterval = setInterval(async () => {
       const current = activeSessionRef.current;
@@ -105,6 +134,23 @@ export function useDeskTimer(selectedDateKey: string) {
       const delta = Math.max(0, now - current.lastStateChangeAt);
       const focMs = current.accumulatedFocusedMs + (current.currentState === 'focused' ? delta : 0);
       const disMs = current.accumulatedDistractedMs + (current.currentState === 'distracted' ? delta : 0);
+
+      // Attribute focused time to active task
+      if (current.currentState === 'focused' && activeTaskIdRef.current) {
+        const elapsedSecSinceLastSync = Math.max(0, Math.round((now - lastTaskSyncTime) / 1000));
+        if (elapsedSecSinceLastSync > 0) {
+          const task = await db.tasks.get(activeTaskIdRef.current);
+          if (task) {
+            await db.tasks.update(activeTaskIdRef.current, {
+              focusedSeconds: (task.focusedSeconds || 0) + elapsedSecSinceLastSync,
+              updatedAt: now,
+            });
+          }
+          lastTaskSyncTime = now;
+        }
+      } else {
+        lastTaskSyncTime = now;
+      }
 
       try {
         await db.deskSessions.put({
@@ -117,11 +163,12 @@ export function useDeskTimer(selectedDateKey: string) {
           status: 'active',
           currentState: current.currentState,
           lastStateChangeAt: current.lastStateChangeAt,
+          activeTaskId: activeTaskIdRef.current,
         });
       } catch (e) {
         console.error('Error background syncing desk session', e);
       }
-    }, 5000);
+    }, 3000);
 
     return () => clearInterval(syncInterval);
   }, [activeSession?.id]);
@@ -140,6 +187,7 @@ export function useDeskTimer(selectedDateKey: string) {
       accumulatedFocusedMs: 0,
       accumulatedDistractedMs: 0,
       currentState: 'focused',
+      activeTaskId: activeTaskIdRef.current,
     };
 
     setActiveSession(newSession);
@@ -156,6 +204,7 @@ export function useDeskTimer(selectedDateKey: string) {
         status: 'active',
         currentState: 'focused',
         lastStateChangeAt: now,
+        activeTaskId: activeTaskIdRef.current,
       });
     } catch (err) {
       console.error('Error starting desk session in DB', err);
@@ -175,6 +224,18 @@ export function useDeskTimer(selectedDateKey: string) {
 
     if (current.currentState === 'focused') {
       nextFoc += delta;
+      // Also attribute to task
+      if (activeTaskIdRef.current) {
+        const addedSec = Math.round(delta / 1000);
+        db.tasks.get(activeTaskIdRef.current).then(task => {
+          if (task && addedSec > 0) {
+            db.tasks.update(task.id, {
+              focusedSeconds: (task.focusedSeconds || 0) + addedSec,
+              updatedAt: now,
+            });
+          }
+        });
+      }
     } else {
       nextDis += delta;
     }
@@ -234,11 +295,12 @@ export function useDeskTimer(selectedDateKey: string) {
         status: 'completed',
         currentState: 'focused',
         lastStateChangeAt: calibrationData.endedAt,
+        activeTaskId: activeTaskIdRef.current,
       };
 
       await db.deskSessions.put(sessionRecord);
 
-      // Also update or insert day record aggregated stats
+      // Also update day record aggregated stats
       const existingDay = await db.days.get(calibrationData.dateKey);
       const allCompleted = await db.deskSessions
         .where('dateKey')
@@ -266,7 +328,6 @@ export function useDeskTimer(selectedDateKey: string) {
       setCalibrationData(null);
       soundEngine.playKeyClick();
 
-      // Refresh totals
       refreshCompletedDayTotals(calibrationData.dateKey);
     } catch (err) {
       console.error('Error committing desk session', err);
@@ -280,7 +341,47 @@ export function useDeskTimer(selectedDateKey: string) {
     soundEngine.playKeyClick();
   }, []);
 
-  // Global Spacebar shortcut listener
+  // Reset Timer Back to 00:00:00 (Zero out session and today's desk time)
+  const resetTimer = useCallback(async () => {
+    soundEngine.playKeyClick();
+
+    // Clear active session
+    setActiveSession(null);
+    localStorage.removeItem(STORAGE_KEY);
+    setShowCalibrationModal(false);
+    setCalibrationData(null);
+
+    try {
+      // Delete today's desk sessions
+      await db.deskSessions
+        .where('dateKey')
+        .equals(selectedDateKey)
+        .delete();
+
+      // Zero out day's desk hours
+      const existingDay = await db.days.get(selectedDateKey);
+      if (existingDay) {
+        await db.days.update(selectedDateKey, {
+          focusedSeconds: 0,
+          distractedSeconds: 0,
+          updatedAt: Date.now(),
+        });
+      }
+
+      // Zero out task focusedSeconds for today
+      await db.tasks
+        .where('dateKey')
+        .equals(selectedDateKey)
+        .modify({ focusedSeconds: 0, updatedAt: Date.now() });
+
+      setCompletedTodayFocusedSec(0);
+      setCompletedTodayDistractedSec(0);
+    } catch (err) {
+      console.error('Error resetting timer', err);
+    }
+  }, [selectedDateKey]);
+
+  // Global Spacebar listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
@@ -288,10 +389,7 @@ export function useDeskTimer(selectedDateKey: string) {
         const tagName = target?.tagName?.toLowerCase();
         const isInputField = tagName === 'input' || tagName === 'textarea' || target?.isContentEditable;
 
-        if (isInputField) {
-          // Allow normal spacebar typing in input fields
-          return;
-        }
+        if (isInputField) return;
 
         if (activeSessionRef.current && !showCalibrationModal) {
           e.preventDefault();
@@ -319,13 +417,11 @@ export function useDeskTimer(selectedDateKey: string) {
     currentSessionTotalSec = currentSessionFocusedSec + currentSessionDistractedSec;
   }
 
-  // Combined totals for selected date
   const isSelectedDateToday = selectedDateKey === getLocalDateKey();
   const totalDayFocusedSec = completedTodayFocusedSec + (isSelectedDateToday ? currentSessionFocusedSec : 0);
   const totalDayDistractedSec = completedTodayDistractedSec + (isSelectedDateToday ? currentSessionDistractedSec : 0);
   const totalDayAtDeskSec = totalDayFocusedSec + totalDayDistractedSec;
 
-  // Live Desk Efficiency: (Focused / Time at Desk) * 100
   const deskEfficiencyPercent = totalDayAtDeskSec > 0
     ? Math.round((totalDayFocusedSec / totalDayAtDeskSec) * 100)
     : 0;
@@ -334,22 +430,21 @@ export function useDeskTimer(selectedDateKey: string) {
     activeSession,
     isClockedIn: activeSession !== null,
     currentState: activeSession?.currentState ?? 'focused',
-    // Live session stats
+    activeTaskId,
+    setActiveTaskId,
     currentSessionFocusedSec,
     currentSessionDistractedSec,
     currentSessionTotalSec,
-    // Day combined stats
     totalDayFocusedSec,
     totalDayDistractedSec,
     totalDayAtDeskSec,
     deskEfficiencyPercent,
-    // Actions
     clockIn,
     toggleState,
     requestClockOut,
     commitSession,
     cancelClockOut,
-    // Calibration Modal
+    resetTimer,
     showCalibrationModal,
     calibrationData,
     refreshTotals: () => refreshCompletedDayTotals(selectedDateKey),
@@ -357,5 +452,3 @@ export function useDeskTimer(selectedDateKey: string) {
 }
 
 export type UseDeskTimerReturn = ReturnType<typeof useDeskTimer>;
-
-

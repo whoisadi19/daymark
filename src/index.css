@@ -14,9 +14,12 @@ body {
   min-height: 100vh;
 }
 
+/* Crisp Tabular Monospace for All Numbers, Timers & ASCII */
+.font-mono,
+.font-ascii,
 .font-ndot {
-  font-family: 'DotGothic16', 'Silkscreen', monospace;
-  letter-spacing: 0.04em;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .tabular-nums {

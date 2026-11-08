@@ -1,21 +1,35 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, Volume2, VolumeX, Download, Upload, RefreshCw, Trash2, X } from 'lucide-react';
+import { Settings, Volume2, VolumeX, Download, Upload, RefreshCw, Trash2, X, Command, Smartphone } from 'lucide-react';
 import { exportDatabaseToJson, importDatabaseFromJson, seedRealisticDemoTelemetry, clearAllTelemetryData } from '../db/db';
 import { soundEngine } from '../utils/audio';
 
 interface SettingsPopoverProps {
   selectedDateKey: string;
   onDataRefresh: () => void;
+  onOpenShortcuts?: () => void;
 }
 
 export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   selectedDateKey,
   onDataRefresh,
+  onOpenShortcuts,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(soundEngine.isEnabled());
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Listen for beforeinstallprompt for PWA install
+  useEffect(() => {
+    const handleBeforeInstall = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstall);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -34,6 +48,19 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
     soundEngine.setSoundEnabled(next);
     setSoundEnabled(next);
     if (next) soundEngine.playKeyClick();
+  };
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) {
+      alert('PWA already installed or add-to-home-screen not supported in this browser window.');
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+    setIsOpen(false);
   };
 
   const handleBackup = async () => {
@@ -69,7 +96,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   };
 
   const handleSeed = async () => {
-    if (window.confirm('Seed 7 days of realistic demo telemetry? This will replace current local database.')) {
+    if (window.confirm('Seed 7 days of realistic telemetry (including sleep shift schedule)?')) {
       await seedRealisticDemoTelemetry();
       onDataRefresh();
       setIsOpen(false);
@@ -85,7 +112,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
   };
 
   return (
-    <div className="relative" ref={popoverRef}>
+    <div className="relative z-[100]" ref={popoverRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-9 h-9 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-all backdrop-blur-xl"
@@ -96,9 +123,9 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-64 bg-[#161618]/95 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] rounded-2xl p-2 z-50 text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-3 w-64 bg-[#161618] border border-white/15 shadow-[0_25px_60px_rgba(0,0,0,0.95)] rounded-2xl p-2 z-[100] text-xs font-sans animate-in fade-in zoom-in-95 duration-100">
           <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 text-white/60">
-            <span className="font-semibold text-xs text-white">NOTHING OS // TOOLS</span>
+            <span className="font-semibold text-xs text-white">SYSTEM // TOOLS</span>
             <button
               onClick={() => setIsOpen(false)}
               className="text-white/40 hover:text-white"
@@ -108,6 +135,34 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
           </div>
 
           <div className="py-1">
+            {/* PWA Install Button */}
+            <button
+              onClick={handleInstallApp}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-white/[0.08] text-white/90 transition-colors"
+            >
+              <span className="flex items-center gap-2.5">
+                <Smartphone size={14} className="text-[#D71921]" />
+                <span>Install Standalone App</span>
+              </span>
+              <span className="text-[10px] text-white/40 font-mono">PWA</span>
+            </button>
+
+            {onOpenShortcuts && (
+              <button
+                onClick={() => {
+                  onOpenShortcuts();
+                  setIsOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-white/[0.08] text-white/90 transition-colors"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Command size={14} className="text-white/50" />
+                  <span>Shortcuts</span>
+                </span>
+                <span className="text-[10px] text-white/40 font-mono">?</span>
+              </button>
+            )}
+
             <button
               onClick={toggleSound}
               className="w-full flex items-center justify-between px-3 py-2 rounded-xl hover:bg-white/[0.08] text-white/90 transition-colors"
@@ -116,7 +171,7 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
                 {soundEnabled ? <Volume2 size={14} className="text-[#D71921]" /> : <VolumeX size={14} className="text-white/40" />}
                 <span>Haptic Audio</span>
               </span>
-              <span className="text-[10px] text-white/40 font-ndot">{soundEnabled ? 'ON' : 'OFF'}</span>
+              <span className="text-[10px] text-white/40 font-mono">{soundEnabled ? 'ON' : 'OFF'}</span>
             </button>
 
             <button

@@ -18,7 +18,8 @@ export interface TaskItem {
   completed: boolean;
   completedAt: string | null; // e.g. "14:22"
   rolloverCount: number; // tracks how many times rolled over (>= 3 triggers stale badge)
-  linkedToGoal: boolean; // 1-click link to short term goal
+  linkedToGoal: boolean; // 1-click link to goal
+  focusedSeconds?: number; // Total focused seconds tracked against this task
   updatedAt: number;
 }
 
@@ -32,6 +33,7 @@ export interface DeskSession {
   status: 'active' | 'completed';
   currentState: 'focused' | 'distracted';
   lastStateChangeAt: number; // timestamp ms
+  activeTaskId?: string | null;
 }
 
 export interface GoalRecord {
@@ -39,6 +41,143 @@ export interface GoalRecord {
   title: string;
   targetDate: string; // YYYY-MM-DD
   updatedAt: number;
+}
+
+export interface SleepScheduleConfig {
+  baselineSleepTime: string; // e.g. "04:30"
+  baselineWakeTime: string;  // e.g. "14:00"
+  targetSleepTime: string;   // e.g. "00:00" (12:00 AM)
+  targetWakeTime: string;    // e.g. "08:00" (08:00 AM)
+  shiftMinutesPerDay: number; // e.g. 15 mins/day
+  startDateKey: string;      // YYYY-MM-DD
+}
+
+export const SLEEP_SCHEDULE_STORAGE_KEY = 'daymark_sleep_schedule_config_v1';
+
+export const DEFAULT_SLEEP_SCHEDULE: SleepScheduleConfig = {
+  baselineSleepTime: '04:30',
+  baselineWakeTime: '14:00',
+  targetSleepTime: '00:00',
+  targetWakeTime: '08:00',
+  shiftMinutesPerDay: 15,
+  startDateKey: '2026-11-01',
+};
+
+export function getSleepScheduleConfig(): SleepScheduleConfig {
+  try {
+    const raw = localStorage.getItem(SLEEP_SCHEDULE_STORAGE_KEY);
+    if (raw) {
+      return { ...DEFAULT_SLEEP_SCHEDULE, ...JSON.parse(raw) };
+    }
+  } catch (e) {
+    console.error('Error reading sleep schedule config', e);
+  }
+  return DEFAULT_SLEEP_SCHEDULE;
+}
+
+export function saveSleepScheduleConfig(cfg: SleepScheduleConfig): void {
+  try {
+    localStorage.setItem(SLEEP_SCHEDULE_STORAGE_KEY, JSON.stringify(cfg));
+  } catch (e) {
+    console.error('Error saving sleep schedule config', e);
+  }
+}
+
+// Convert "HH:MM" to minutes from midnight
+export function timeStringToMinutes(timeStr: string): number {
+  if (!timeStr || !timeStr.includes(':')) return 0;
+  const [h, m] = timeStr.split(':').map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+// Convert minutes from midnight to "HH:MM"
+export function minutesToTimeString(minutes: number): string {
+  const norm = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  const h = Math.floor(norm / 60);
+  const m = norm % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// Format "HH:MM" to 12-hour AM/PM string, e.g. "04:30 AM"
+export function formatTime12Hour(timeStr: string): string {
+  if (!timeStr || !timeStr.includes(':')) return '--:--';
+  const [h24, m] = timeStr.split(':').map(Number);
+  const period = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
+}
+
+// Calculate tonight's target sleep and wake time based on shifting
+export function calculateSleepShiftForDate(cfg: SleepScheduleConfig, currentDateKey: string) {
+  const [sy, sm, sd] = cfg.startDateKey.split('-').map(Number);
+  const [cy, cm, cd] = currentDateKey.split('-').map(Number);
+  const start = new Date(sy, sm - 1, sd);
+  const current = new Date(cy, cm - 1, cd);
+
+  const diffDays = Math.max(0, Math.round((current.getTime() - start.getTime()) / 86400000));
+
+  // Baseline in minutes
+  // Note: 04:30 AM is 270 minutes. 00:00 (12 AM) can be treated as 0 or 24:00 (1440).
+  // Shifting earlier means subtracting minutes.
+  const baselineSleepMin = timeStringToMinutes(cfg.baselineSleepTime); // 270 min (4:30 AM)
+  const baselineWakeMin = timeStringToMinutes(cfg.baselineWakeTime);   // 840 min (14:00 / 2:00 PM)
+
+  const targetSleepMin = timeStringToMinutes(cfg.targetSleepTime);     // 0 min (00:00 / 12:00 AM)
+  const targetWakeMin = timeStringToMinutes(cfg.targetWakeTime);       // 480 min (08:00 AM)
+
+  // Distance to shift in minutes:
+  // From 04:30 AM (270) down to 00:00 (0): 270 minutes.
+  let sleepDistance = baselineSleepMin - targetSleepMin;
+  if (sleepDistance < 0) sleepDistance += 1440;
+
+  let wakeDistance = baselineWakeMin - targetWakeMin;
+  if (wakeDistance < 0) wakeDistance += 1440;
+
+  const totalDaysNeeded = Math.ceil(Math.max(sleepDistance, wakeDistance) / (cfg.shiftMinutesPerDay || 15));
+  const daysRemaining = Math.max(0, totalDaysNeeded - diffDays);
+
+  const totalShiftedMinutes = Math.min(sleepDistance, diffDays * cfg.shiftMinutesPerDay);
+  const totalWakeShiftedMinutes = Math.min(wakeDistance, diffDays * cfg.shiftMinutesPerDay);
+
+  let tonightSleepMin = baselineSleepMin - totalShiftedMinutes;
+  if (tonightSleepMin < 0) tonightSleepMin += 1440;
+
+  let tonightWakeMin = baselineWakeMin - totalWakeShiftedMinutes;
+  if (tonightWakeMin < 0) tonightWakeMin += 1440;
+
+  const tonightSleepStr = minutesToTimeString(tonightSleepMin);
+  const tonightWakeStr = minutesToTimeString(tonightWakeMin);
+
+  const isTargetReached = daysRemaining === 0;
+
+  return {
+    tonightSleepTime: tonightSleepStr,
+    tonightWakeTime: tonightWakeStr,
+    daysRemaining,
+    totalDaysNeeded,
+    diffDays,
+    isTargetReached,
+  };
+}
+
+// Render crisp ASCII progress bar: e.g. [████████████░░░░] 75%
+export function renderAsciiProgressBar(percent: number, totalChars = 14): string {
+  const clamped = Math.max(0, Math.min(100, Math.round(percent)));
+  const filledChars = Math.round((clamped / 100) * totalChars);
+  const emptyChars = totalChars - filledChars;
+  const bar = '█'.repeat(filledChars) + '░'.repeat(emptyChars);
+  return `[${bar}] ${clamped}%`;
+}
+
+// Format task focused time e.g. "45m" or "1h 15m"
+export function formatTaskDuration(seconds?: number): string {
+  if (!seconds || seconds <= 0) return '';
+  const totalMin = Math.round(seconds / 60);
+  if (totalMin < 1) return '<1m';
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
 export class DaymarkDatabase extends Dexie {
@@ -114,23 +253,21 @@ export async function ensureDefaultGoals(): Promise<void> {
   const count = await db.goals.count();
   if (count === 0) {
     const today = new Date();
-    // Default short term: 14 days ahead
     const stDate = new Date(today);
     stDate.setDate(stDate.getDate() + 14);
-    // Default long term: 90 days ahead
     const ltDate = new Date(today);
     ltDate.setDate(ltDate.getDate() + 90);
 
     await db.goals.bulkPut([
       {
         id: 'short_term',
-        title: 'Ship Core Industrial Prototype',
+        title: 'Shift Sleep 15m Earlier Daily',
         targetDate: getLocalDateKey(stDate),
         updatedAt: Date.now(),
       },
       {
         id: 'long_term',
-        title: 'Publish Production Hardware Telemetry Suite',
+        title: 'Consistent 12:00 AM -> 08:00 AM Sleep Schedule',
         targetDate: getLocalDateKey(ltDate),
         updatedAt: Date.now(),
       },
@@ -148,12 +285,13 @@ export async function exportDatabaseToJson(): Promise<string> {
   ]);
 
   const backupData = {
-    version: '1.0',
+    version: '2.0',
     exportTimestamp: new Date().toISOString(),
     days,
     tasks,
     deskSessions,
     goals,
+    sleepSchedule: getSleepScheduleConfig(),
   };
 
   return JSON.stringify(backupData, null, 2);
@@ -185,6 +323,9 @@ export async function importDatabaseFromJson(jsonString: string): Promise<boolea
       if (Array.isArray(data.goals) && data.goals.length > 0) {
         await db.goals.bulkPut(data.goals);
       }
+      if (data.sleepSchedule) {
+        saveSleepScheduleConfig(data.sleepSchedule);
+      }
     });
 
     return true;
@@ -205,47 +346,24 @@ export async function clearAllTelemetryData(): Promise<void> {
   await ensureDefaultGoals();
 }
 
-// --- Seed 7-14 Days of Realistic Demo Telemetry ---
+// --- Seed 7 Days of Realistic Demo Telemetry ---
 export async function seedRealisticDemoTelemetry(): Promise<void> {
   const today = new Date();
-  
-  // Clear and prepare
   await clearAllTelemetryData();
-
-  // Set goals
-  const stDate = new Date(today);
-  stDate.setDate(stDate.getDate() + 14);
-  const ltDate = new Date(today);
-  ltDate.setDate(ltDate.getDate() + 84);
-
-  await db.goals.bulkPut([
-    {
-      id: 'short_term',
-      title: 'Ship Core Hardware Telemetry V1',
-      targetDate: getLocalDateKey(stDate),
-      updatedAt: Date.now(),
-    },
-    {
-      id: 'long_term',
-      title: 'Architect Enterprise Desk Firmware Stack',
-      targetDate: getLocalDateKey(ltDate),
-      updatedAt: Date.now(),
-    },
-  ]);
 
   const daysToInsert: DayRecord[] = [];
   const tasksToInsert: TaskItem[] = [];
   const sessionsToInsert: DeskSession[] = [];
 
-  // Realistic seed parameters for 14 days
+  // Realistic sleep shift demo data: shifting from 04:30 AM / 14:00 down toward 01:00 AM / 09:30 AM
   const demoProfiles = [
-    { sleepT: '23:15', wakeT: '07:15', focusedH: 5.8, distractedH: 1.1, tasks: ['Refactor state machine monotonic loop', 'Profile memory allocations on 200ms loop', 'Draft Dexie schema documentation'], completed: [true, true, true] },
-    { sleepT: '00:30', wakeT: '06:30', focusedH: 4.2, distractedH: 2.8, tasks: ['Resolve race condition in rollover worker', 'Assemble SVG segmented LED meter component', 'Implement keyboard shortcut listener'], completed: [true, false, true] },
-    { sleepT: '22:45', wakeT: '06:45', focusedH: 6.4, distractedH: 0.9, tasks: ['Calibrate physical switch sound synthetic audio', 'Implement tactile calibration slider modal', 'Inspect hairline border alignment across viewports'], completed: [true, true, true] },
-    { sleepT: '01:15', wakeT: '06:45', focusedH: 3.5, distractedH: 3.4, tasks: ['Audit layout against Braun design specs', 'Write unit tests for sleep duration parser', 'Add JSON export/import handler'], completed: [false, false, true] },
-    { sleepT: '23:30', wakeT: '07:30', focusedH: 6.2, distractedH: 1.2, tasks: ['Build 14-day stacked barcode telemetry chart', 'Implement correlation scatterplot for sleep vs distraction', 'Construct 5-slot queue limiter for tomorrow list'], completed: [true, true, true] },
-    { sleepT: '00:00', wakeT: '07:00', focusedH: 5.1, distractedH: 1.9, tasks: ['Tune International Orange Braun color variable', 'Verify JetBrains Mono tabular numeric alignment', 'Audit local storage synchronization resilience'], completed: [true, true, false] },
-    { sleepT: '23:00', wakeT: '07:15', focusedH: 5.5, distractedH: 1.4, tasks: ['Build mechanical checkbox tick animations', 'Add tactile hover effects on instrument buttons', 'Finalize Dieter Rams inspired title block'], completed: [true, true, true] },
+    { sleepT: '04:30', wakeT: '14:00', focusedH: 4.8, distractedH: 1.8, tasks: ['Configure Web App Manifest & Service Worker', 'Fix z-index stacking on settings popover', 'Map out 15m/day sleep shifting formula'], completed: [true, true, true], taskTimes: [3600, 2400, 2800] },
+    { sleepT: '04:00', wakeT: '13:15', focusedH: 5.2, distractedH: 1.5, tasks: ['Refactor monospace timer typography', 'Implement task selector dropdown in tracker', 'Review midnight rollover promoting tomorrow queue'], completed: [true, true, false], taskTimes: [4200, 3600, 0] },
+    { sleepT: '03:30', wakeT: '12:30', focusedH: 5.8, distractedH: 1.2, tasks: ['Construct 7-day sleep schedule floating graph', 'Test compact floating widget layout', 'Add animated ASCII state indicators'], completed: [true, true, true], taskTimes: [5400, 3600, 4200] },
+    { sleepT: '03:15', wakeT: '12:00', focusedH: 6.0, distractedH: 1.0, tasks: ['Calibrate sleep duration delta cross-midnight', 'Per-task time breakdown aggregation', 'Audit offline font caching'], completed: [true, true, true], taskTimes: [4800, 4800, 2400] },
+    { sleepT: '02:45', wakeT: '11:15', focusedH: 6.4, distractedH: 0.9, tasks: ['Wire Reset timer confirmation button', 'Refactor tab labels to plain English', 'Test mobile layout on Android viewport'], completed: [true, true, true], taskTimes: [6000, 3600, 2400] },
+    { sleepT: '02:15', wakeT: '10:30', focusedH: 6.8, distractedH: 0.8, tasks: ['Validate PWA install prompt event handler', 'Verify stale rollover 3D warning pill', 'Audit service worker caching strategy'], completed: [true, true, false], taskTimes: [7200, 3600, 0] },
+    { sleepT: '01:45', wakeT: '09:45', focusedH: 7.2, distractedH: 0.7, tasks: ['Final regression pass across 3 tabs', 'Compact desktop widget mode hotkey', 'Verify ASCII block bar rendering'], completed: [true, true, true], taskTimes: [7200, 4800, 3600] },
   ];
 
   for (let i = 6; i >= 0; i--) {
@@ -268,9 +386,8 @@ export async function seedRealisticDemoTelemetry(): Promise<void> {
       updatedAt: Date.now() - i * 86400000,
     });
 
-    // Create completed desk session
     const sessionStart = new Date(d);
-    sessionStart.setHours(9, 30, 0, 0);
+    sessionStart.setHours(14, 0, 0, 0);
     sessionsToInsert.push({
       id: `session-demo-${dateKey}`,
       dateKey,
@@ -283,7 +400,6 @@ export async function seedRealisticDemoTelemetry(): Promise<void> {
       lastStateChangeAt: sessionStart.getTime() + (focusedSec + distractedSec) * 1000,
     });
 
-    // Add tasks
     profile.tasks.forEach((taskTitle, idx) => {
       const isDone = profile.completed[idx];
       tasksToInsert.push({
@@ -292,101 +408,94 @@ export async function seedRealisticDemoTelemetry(): Promise<void> {
         listType: 'today',
         title: taskTitle,
         completed: isDone,
-        completedAt: isDone ? '16:45' : null,
+        completedAt: isDone ? '18:30' : null,
         rolloverCount: isDone ? 0 : 1,
         linkedToGoal: idx === 0,
+        focusedSeconds: profile.taskTimes[idx] || 0,
         updatedAt: Date.now() - i * 86400000,
       });
     });
   }
 
-  // Today specific tasks (include a 3-day stale rolled over task to test [STALE: 3D] badge!)
+  // Today specific tasks
   const todayKey = getLocalDateKey(today);
-  
-  // Make sure today's day record exists
   const existingToday = daysToInsert.find(d => d.dateKey === todayKey);
   if (!existingToday) {
     daysToInsert.push({
       dateKey: todayKey,
-      sleepTime: '23:30',
-      wakeTime: '07:15',
-      sleepDurationMin: calculateSleepMinutes('23:30', '07:15'),
-      focusedSeconds: 7200, // 2 hours
-      distractedSeconds: 1800, // 30 mins
+      sleepTime: '01:30',
+      wakeTime: '09:30',
+      sleepDurationMin: calculateSleepMinutes('01:30', '09:30'),
+      focusedSeconds: 3600,
+      distractedSeconds: 600,
       updatedAt: Date.now(),
     });
   }
 
-  // Today tasks
+  // Today execution checklist
   tasksToInsert.push(
     {
-      id: `task-today-stale-1`,
+      id: 'task-today-1',
       dateKey: todayKey,
       listType: 'today',
-      title: 'Audit thermal dispersion on desk MCU heatsink',
+      title: 'Review Linux system daemon logs',
+      completed: true,
+      completedAt: '12:45',
+      rolloverCount: 0,
+      linkedToGoal: true,
+      focusedSeconds: 2700, // 45m
+      updatedAt: Date.now(),
+    },
+    {
+      id: 'task-today-2',
+      dateKey: todayKey,
+      listType: 'today',
+      title: 'Refactor sleep schedule shifter algorithm',
       completed: false,
       completedAt: null,
-      rolloverCount: 3, // >= 3 displays [STALE: 3D] in amber!
+      rolloverCount: 3, // >= 3 shows 3D stale badge!
       linkedToGoal: true,
+      focusedSeconds: 1800, // 30m
       updatedAt: Date.now(),
     },
     {
-      id: `task-today-active-2`,
+      id: 'task-today-3',
       dateKey: todayKey,
       listType: 'today',
-      title: 'Review monotonic clock drift under suspended browser tabs',
-      completed: true,
-      completedAt: '11:15',
-      rolloverCount: 1,
-      linkedToGoal: true,
-      updatedAt: Date.now(),
-    },
-    {
-      id: `task-today-active-3`,
-      dateKey: todayKey,
-      listType: 'today',
-      title: 'Verify tactile rocker switch keybinding preventDefault',
+      title: 'Test offline PWA service worker caching',
       completed: false,
       completedAt: null,
       rolloverCount: 0,
       linkedToGoal: false,
+      focusedSeconds: 900, // 15m
       updatedAt: Date.now(),
     }
   );
 
-  // Tomorrow queue tasks (strictly max 5 slots, let's put 3 items so slot counter shows 3/5)
+  // Tomorrow queue (capped at 5)
   tasksToInsert.push(
     {
-      id: `task-tmrw-1`,
+      id: 'task-tmrw-1',
       dateKey: todayKey,
       listType: 'tomorrow',
-      title: 'Run 14-day telemetry diagnostics regression suite',
+      title: 'Calibrate tonight target bedtime at 01:15 AM',
       completed: false,
       completedAt: null,
       rolloverCount: 0,
       linkedToGoal: true,
+      focusedSeconds: 0,
       updatedAt: Date.now(),
     },
     {
-      id: `task-tmrw-2`,
+      id: 'task-tmrw-2',
       dateKey: todayKey,
       listType: 'tomorrow',
-      title: 'Benchmark SQLite vs Dexie index access latency',
+      title: 'Benchmark SQLite vs IndexedDB read latency',
       completed: false,
       completedAt: null,
       rolloverCount: 0,
       linkedToGoal: false,
-      updatedAt: Date.now(),
-    },
-    {
-      id: `task-tmrw-3`,
-      dateKey: todayKey,
-      listType: 'tomorrow',
-      title: 'Order replacement mechanical rotary encoders',
-      completed: false,
-      completedAt: null,
-      rolloverCount: 0,
-      linkedToGoal: false,
+      focusedSeconds: 0,
       updatedAt: Date.now(),
     }
   );
@@ -394,5 +503,13 @@ export async function seedRealisticDemoTelemetry(): Promise<void> {
   await db.days.bulkPut(daysToInsert);
   await db.tasks.bulkPut(tasksToInsert);
   await db.deskSessions.bulkPut(sessionsToInsert);
-}
 
+  saveSleepScheduleConfig({
+    baselineSleepTime: '04:30',
+    baselineWakeTime: '14:00',
+    targetSleepTime: '00:00',
+    targetWakeTime: '08:00',
+    shiftMinutesPerDay: 15,
+    startDateKey: '2026-11-01',
+  });
+}

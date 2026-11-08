@@ -1,7 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { db, DayRecord, GoalRecord, getLocalDateKey, calculateSleepMinutes, formatSleepDuration } from '../db/db';
+import {
+  db,
+  DayRecord,
+  getLocalDateKey,
+  calculateSleepMinutes,
+  formatSleepDuration,
+  getSleepScheduleConfig,
+  saveSleepScheduleConfig,
+  calculateSleepShiftForDate,
+  formatTime12Hour,
+  renderAsciiProgressBar,
+  SleepScheduleConfig,
+} from '../db/db';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Moon } from 'lucide-react';
+import { Moon, Sun, ArrowRight, Sliders, CheckCircle2 } from 'lucide-react';
 
 interface AnalyticsSectionProps {
   selectedDateKey: string;
@@ -14,20 +26,27 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
 }) => {
   const [hoveredBarcodeDay, setHoveredBarcodeDay] = useState<string | null>(null);
 
+  // Sleep Schedule Config
+  const [sleepConfig, setSleepConfig] = useState<SleepScheduleConfig>(() => getSleepScheduleConfig());
+  const [isEditingConfig, setIsEditingConfig] = useState(false);
+
+  // Form states for config editing
+  const [baseSleepInput, setBaseSleepInput] = useState(sleepConfig.baselineSleepTime);
+  const [baseWakeInput, setBaseWakeInput] = useState(sleepConfig.baselineWakeTime);
+  const [targetSleepInput, setTargetSleepInput] = useState(sleepConfig.targetSleepTime);
+  const [targetWakeInput, setTargetWakeInput] = useState(sleepConfig.targetWakeTime);
+  const [shiftStepInput, setShiftStepInput] = useState(sleepConfig.shiftMinutesPerDay);
+
   // Live queries
   const allDays = useLiveQuery(() => db.days.toArray(), []);
   const allTasks = useLiveQuery(() => db.tasks.toArray(), []);
-  const goals = useLiveQuery(() => db.goals.toArray(), []);
-
-  const shortTermGoal = goals?.find((g) => g.id === 'short_term');
-  const longTermGoal = goals?.find((g) => g.id === 'long_term');
 
   const currentDayRecord = useLiveQuery(
     () => db.days.get(selectedDateKey),
     [selectedDateKey]
   );
 
-  // Sleep states
+  // Sleep states for selected date
   const [sleepTime, setSleepTime] = useState<string>('');
   const [wakeTime, setWakeTime] = useState<string>('');
 
@@ -40,11 +59,6 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
       setWakeTime('');
     }
   }, [currentDayRecord, selectedDateKey]);
-
-  // Goal inline editing state
-  const [editingGoalId, setEditingGoalId] = useState<'short_term' | 'long_term' | null>(null);
-  const [goalTitleInput, setGoalTitleInput] = useState<string>('');
-  const [goalDateInput, setGoalDateInput] = useState<string>('');
 
   // 14 Past Dates
   const past14DateKeys: string[] = [];
@@ -76,8 +90,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     const focusedHours = day ? day.focusedSeconds / 3600 : 0;
     const distractedHours = day ? day.distractedSeconds / 3600 : 0;
     const totalHours = focusedHours + distractedHours;
-
-    const [,, d] = dateKey.split('-');
+    const [, , d] = dateKey.split('-');
     return {
       dateKey,
       dayNumber: d,
@@ -105,69 +118,76 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
     });
   };
 
-  // Goal Days Remaining
-  const calculateDaysRemaining = (targetDateStr: string | undefined): string => {
-    if (!targetDateStr) return '0D';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [y, m, d] = targetDateStr.split('-').map(Number);
-    const target = new Date(y, m - 1, d);
-    target.setHours(0, 0, 0, 0);
-
-    const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000);
-    if (diffDays > 0) return `${diffDays}D LEFT`;
-    if (diffDays === 0) return 'DUE TODAY';
-    return `${Math.abs(diffDays)}D OVERDUE`;
-  };
-
-  const handleStartEditGoal = (goal: GoalRecord | undefined, id: 'short_term' | 'long_term') => {
-    setEditingGoalId(id);
-    setGoalTitleInput(goal?.title || (id === 'short_term' ? 'Ship Core Prototype' : 'Production Telemetry Suite'));
-    setGoalDateInput(goal?.targetDate || getLocalDateKey(new Date(Date.now() + (id === 'short_term' ? 14 : 90) * 86400000)));
-  };
-
-  const handleSaveGoal = async () => {
-    if (!editingGoalId) return;
-    await db.goals.put({
-      id: editingGoalId,
-      title: goalTitleInput.trim() || (editingGoalId === 'short_term' ? 'Short-Term Target' : 'Long-Term Vision'),
-      targetDate: goalDateInput,
-      updatedAt: Date.now(),
-    });
-    setEditingGoalId(null);
+  const handleSaveSleepConfig = () => {
+    const updated: SleepScheduleConfig = {
+      ...sleepConfig,
+      baselineSleepTime: baseSleepInput,
+      baselineWakeTime: baseWakeInput,
+      targetSleepTime: targetSleepInput,
+      targetWakeTime: targetWakeInput,
+      shiftMinutesPerDay: Number(shiftStepInput) || 15,
+    };
+    saveSleepScheduleConfig(updated);
+    setSleepConfig(updated);
+    setIsEditingConfig(false);
   };
 
   const calculatedSleepMin = calculateSleepMinutes(sleepTime, wakeTime);
+
+  // Shift Calculations for tonight
+  const shiftStats = calculateSleepShiftForDate(sleepConfig, selectedDateKey);
 
   // SVG Circular Gauge Calculations
   const radius = 38;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (todayRate / 100) * circumference;
 
+  // 7-Day Sleep Schedule Graph Data
+  const weeklySleepData = past7Keys.map((dKey) => {
+    const day = dayMap.get(dKey);
+    const [y, m, d] = dKey.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+    const dayNum = dateObj.getDate();
+
+    const sleepT = day?.sleepTime || '';
+    const wakeT = day?.wakeTime || '';
+    const durationMin = day?.sleepDurationMin || 0;
+
+    return {
+      dateKey: dKey,
+      dayLabel: `${dayName} ${dayNum}`,
+      sleepTime: sleepT,
+      wakeTime: wakeT,
+      durationMin,
+      wake12: wakeT ? formatTime12Hour(wakeT) : '—',
+      sleep12: sleepT ? formatTime12Hour(sleepT) : '—',
+    };
+  });
+
   return (
     <div className="w-full grid grid-cols-12 gap-4 my-auto animate-in fade-in duration-200">
       {/* ============================================================== */}
-      {/* WIDGET 1: TIME OF SLEEP & TIME OF WAKEUP (NOTHING CLOCK WIDGET) */}
+      {/* WIDGET 1: SLEEP & WAKE LOG (PLAIN ENGLISH) */}
       {/* ============================================================== */}
       <div className="col-span-12 md:col-span-6 bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-6 text-[#F2F2F4] flex flex-col justify-between min-h-[220px]">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-ndot uppercase tracking-widest text-white/50 font-bold flex items-center gap-1.5">
+          <span className="text-[11px] font-mono uppercase tracking-widest text-white/50 font-bold flex items-center gap-1.5">
             <Moon size={12} className="text-[#D71921]" />
-            SLEEP TELEMETRY
+            SLEEP &amp; WAKE LOG
           </span>
-          <span className="text-[10px] font-ndot uppercase text-white/40">
-            CIRCADIAN LOG
+          <span className="text-[10px] font-mono uppercase text-white/40">
+            {selectedDateKey}
           </span>
         </div>
 
-        {/* Big NDot Sleep Duration Readout */}
+        {/* Big Razor-Sharp Sleep Duration Readout */}
         <div className="my-2">
-          <div className="font-ndot text-5xl tracking-wider text-white tabular-nums">
+          <div className="font-mono text-5xl font-light tracking-tight text-white tabular-nums">
             {formatSleepDuration(calculatedSleepMin)}
           </div>
-          <span className="text-[11px] text-white/40 font-ndot uppercase">
-            TOTAL REST RECOVERY
+          <span className="text-[11px] text-white/40 font-mono uppercase">
+            Total Sleep Duration
           </span>
         </div>
 
@@ -175,8 +195,8 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
         <div className="grid grid-cols-2 gap-2.5 pt-2">
           {/* Bed Time Pill */}
           <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl p-2.5 flex flex-col justify-between">
-            <span className="text-[9px] font-ndot uppercase text-white/40 mb-1">
-              TIME OF SLEEP
+            <span className="text-[9px] font-mono uppercase text-white/40 mb-1">
+              Time of Sleep
             </span>
             <input
               type="time"
@@ -185,14 +205,14 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                 setSleepTime(e.target.value);
                 saveSleep(e.target.value, wakeTime);
               }}
-              className="bg-transparent font-ndot text-sm text-white outline-none w-full cursor-pointer"
+              className="bg-transparent font-mono text-sm text-white outline-none w-full cursor-pointer"
             />
           </div>
 
           {/* Wake Time Pill */}
           <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl p-2.5 flex flex-col justify-between">
-            <span className="text-[9px] font-ndot uppercase text-white/40 mb-1">
-              TIME OF WAKEUP
+            <span className="text-[9px] font-mono uppercase text-white/40 mb-1">
+              Time of Wakeup
             </span>
             <input
               type="time"
@@ -201,40 +221,40 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                 setWakeTime(e.target.value);
                 saveSleep(sleepTime, e.target.value);
               }}
-              className="bg-transparent font-ndot text-sm text-white outline-none w-full cursor-pointer"
+              className="bg-transparent font-mono text-sm text-white outline-none w-full cursor-pointer"
             />
           </div>
         </div>
       </div>
 
       {/* ============================================================== */}
-      {/* WIDGET 2: CHECKBOX COMPLETION RATE (NOTHING CIRCULAR PROGRESS GAUGE) */}
+      {/* WIDGET 2: TASK COMPLETION (PLAIN ENGLISH & CIRCULAR GAUGE) */}
       {/* ============================================================== */}
       <div className="col-span-12 md:col-span-6 bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-6 text-[#F2F2F4] flex flex-col justify-between min-h-[220px]">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-ndot uppercase tracking-widest text-white/50 font-bold">
-            COMPLETION RATE
+          <span className="text-[11px] font-mono uppercase tracking-widest text-white/50 font-bold flex items-center gap-1.5">
+            <CheckCircle2 size={12} className="text-[#D71921]" />
+            TASK COMPLETION
           </span>
-          <span className="text-[10px] font-ndot uppercase text-white/40">
-            7D AVG: {past7Rate}%
+          <span className="text-[10px] font-mono uppercase text-white/40">
+            7d average: {past7Rate}%
           </span>
         </div>
 
-        {/* Center: Ring Gauge paired with NDot Percentage */}
+        {/* Center: Ring Gauge paired with Monospace Percentage */}
         <div className="flex items-center justify-between my-2">
           <div>
-            <div className="font-ndot text-5xl tracking-wider text-white tabular-nums">
+            <div className="font-mono text-5xl font-light tracking-tight text-white tabular-nums">
               {todayRate}%
             </div>
-            <span className="text-[11px] text-white/40 font-ndot uppercase">
-              {todayCompleted}/{todayTotal} TASKS DELIVERED
+            <span className="text-[11px] text-white/40 font-mono">
+              {todayCompleted}/{todayTotal} tasks done today
             </span>
           </div>
 
           {/* SVG Circular Ring Gauge */}
           <div className="relative w-24 h-24 flex items-center justify-center">
             <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-              {/* Background Track */}
               <circle
                 cx="50"
                 cy="50"
@@ -243,7 +263,6 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                 strokeWidth="8"
                 fill="none"
               />
-              {/* Active Progress Track */}
               <circle
                 cx="50"
                 cy="50"
@@ -256,144 +275,242 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                 fill="none"
               />
             </svg>
-            <span className="absolute font-ndot text-xs text-white/80">
+            <span className="absolute font-mono text-xs text-white/80 font-bold">
               {todayRate}%
             </span>
           </div>
         </div>
 
-        {/* Bottom 7-Day Average Bar */}
-        <div className="pt-2">
-          <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+        {/* Bottom 7-Day Average Bar with ASCII Block preview */}
+        <div className="pt-2 flex items-center justify-between gap-3">
+          <div className="h-1.5 flex-1 bg-white/10 rounded-full overflow-hidden">
             <div
               className="h-full bg-white/60 rounded-full transition-all duration-500"
               style={{ width: `${past7Rate}%` }}
             />
           </div>
+          <span className="font-mono text-[10px] text-white/40">
+            {renderAsciiProgressBar(past7Rate, 6)}
+          </span>
         </div>
       </div>
 
       {/* ============================================================== */}
-      {/* WIDGET 3: SHORT-TERM & LONG-TERM GOALS (DUAL FROSTED CARD ROW) */}
+      {/* WIDGET 3: SLEEP SCHEDULE SHIFTER (SHORT-TERM & LONG-TERM) */}
       {/* ============================================================== */}
       <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Short-Term Goal Card */}
+        {/* Card A: Short-Term Daily Shift */}
         <div className="bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-5 text-[#F2F2F4]">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-ndot uppercase tracking-widest text-white/50 flex items-center gap-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-white/50 flex items-center gap-1.5 font-bold">
               <span className="w-1.5 h-1.5 rounded-full bg-[#D71921]" />
-              SHORT-TERM MILESTONE
+              SHORT-TERM DAILY SHIFT
             </span>
-            <span className="font-ndot text-[10px] bg-[#D71921] text-white px-2.5 py-0.5 rounded-full font-bold shadow-[0_0_10px_rgba(215,25,33,0.4)]">
-              {calculateDaysRemaining(shortTermGoal?.targetDate)}
+            <span className="font-mono text-[10px] bg-[#D71921] text-white px-2.5 py-0.5 rounded-full font-bold shadow-[0_0_10px_rgba(215,25,33,0.4)]">
+              {shiftStats.isTargetReached ? 'TARGET REACHED' : `${shiftStats.daysRemaining}D REMAINING`}
             </span>
           </div>
 
-          {editingGoalId === 'short_term' ? (
-            <div className="flex flex-col gap-2 pt-1">
-              <input
-                type="text"
-                value={goalTitleInput}
-                onChange={(e) => setGoalTitleInput(e.target.value)}
-                className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-xs text-white outline-none w-full"
-                autoFocus
-              />
-              <div className="flex items-center justify-between gap-2">
-                <input
-                  type="date"
-                  value={goalDateInput}
-                  onChange={(e) => setGoalDateInput(e.target.value)}
-                  className="bg-white/10 border border-white/20 rounded-xl px-2.5 py-1 font-ndot text-xs text-white/70 outline-none"
-                />
-                <div className="flex items-center gap-2">
-                  <button onClick={handleSaveGoal} className="px-3 py-1 bg-[#D71921] rounded-xl text-white text-xs font-medium">
-                    Save
-                  </button>
-                  <button onClick={() => setEditingGoalId(null)} className="px-2 py-1 text-white/50 hover:text-white text-xs">
-                    Cancel
-                  </button>
-                </div>
-              </div>
+          <div className="my-2">
+            <span className="text-[10px] font-mono uppercase text-white/40 block">Tonight's Target</span>
+            <div className="font-mono text-2xl font-medium text-white flex items-center gap-2 my-1">
+              <span>{formatTime12Hour(shiftStats.tonightSleepTime)}</span>
+              <ArrowRight size={14} className="text-[#D71921]" />
+              <span>{formatTime12Hour(shiftStats.tonightWakeTime)}</span>
             </div>
-          ) : (
-            <div
-              onClick={() => handleStartEditGoal(shortTermGoal, 'short_term')}
-              className="cursor-pointer group py-1"
-            >
-              <p className="text-sm font-medium text-white group-hover:text-white/80 transition-colors">
-                {shortTermGoal?.title || 'Ship Core Prototype'}
-              </p>
-              <span className="text-[10px] text-white/40 font-ndot uppercase mt-1 block">
-                Tap to calibrate target date
-              </span>
-            </div>
-          )}
+            <p className="text-xs text-white/60 leading-relaxed">
+              Shifting <strong className="text-white font-mono">{sleepConfig.shiftMinutesPerDay}m earlier/day</strong> from baseline ({formatTime12Hour(sleepConfig.baselineSleepTime)} → {formatTime12Hour(sleepConfig.baselineWakeTime)}).
+            </p>
+          </div>
+
+          <div className="pt-2 text-[10px] font-mono text-white/40 flex items-center justify-between border-t border-white/10 mt-3">
+            <span>Progress: Day {shiftStats.diffDays} of {shiftStats.totalDaysNeeded}</span>
+            <span>{renderAsciiProgressBar(Math.min(100, Math.round((shiftStats.diffDays / Math.max(1, shiftStats.totalDaysNeeded)) * 100)), 8)}</span>
+          </div>
         </div>
 
-        {/* Long-Term Goal Card */}
-        <div className="bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-5 text-[#F2F2F4]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-ndot uppercase tracking-widest text-white/50 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
-              LONG-TERM VISION
-            </span>
-            <span className="font-ndot text-[10px] bg-white/10 border border-white/15 text-white/80 px-2.5 py-0.5 rounded-full font-bold">
-              {calculateDaysRemaining(longTermGoal?.targetDate)}
-            </span>
-          </div>
+        {/* Card B: Long-Term Sleep Target */}
+        <div className="bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-5 text-[#F2F2F4] flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-mono uppercase tracking-widest text-white/50 flex items-center gap-1.5 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-white/40" />
+                LONG-TERM SLEEP TARGET
+              </span>
+              <button
+                onClick={() => setIsEditingConfig(!isEditingConfig)}
+                className="text-[10px] font-mono bg-white/10 hover:bg-white/15 px-2.5 py-0.5 rounded-full text-white/80 flex items-center gap-1 transition-colors"
+              >
+                <Sliders size={10} />
+                <span>{isEditingConfig ? 'Cancel' : 'Edit Target'}</span>
+              </button>
+            </div>
 
-          {editingGoalId === 'long_term' ? (
-            <div className="flex flex-col gap-2 pt-1">
-              <input
-                type="text"
-                value={goalTitleInput}
-                onChange={(e) => setGoalTitleInput(e.target.value)}
-                className="bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-xs text-white outline-none w-full"
-                autoFocus
-              />
-              <div className="flex items-center justify-between gap-2">
-                <input
-                  type="date"
-                  value={goalDateInput}
-                  onChange={(e) => setGoalDateInput(e.target.value)}
-                  className="bg-white/10 border border-white/20 rounded-xl px-2.5 py-1 font-ndot text-xs text-white/70 outline-none"
-                />
-                <div className="flex items-center gap-2">
-                  <button onClick={handleSaveGoal} className="px-3 py-1 bg-[#D71921] rounded-xl text-white text-xs font-medium">
-                    Save
-                  </button>
-                  <button onClick={() => setEditingGoalId(null)} className="px-2 py-1 text-white/50 hover:text-white text-xs">
-                    Cancel
+            {!isEditingConfig ? (
+              <div className="my-2">
+                <span className="text-[10px] font-mono uppercase text-white/40 block">Ideal Consistent Schedule</span>
+                <div className="font-mono text-2xl font-medium text-white flex items-center gap-2 my-1">
+                  <span>{formatTime12Hour(sleepConfig.targetSleepTime)}</span>
+                  <ArrowRight size={14} className="text-white/40" />
+                  <span>{formatTime12Hour(sleepConfig.targetWakeTime)}</span>
+                </div>
+                <p className="text-xs text-white/60">
+                  Fixed target: Sleep by <strong className="text-white">12:00 AM</strong>, wake up by <strong className="text-white">08:00 AM</strong> for an optimal 8-hour circadian rhythm.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 py-1">
+                <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                  <div>
+                    <span className="text-[9px] text-white/40 uppercase block">Base Sleep</span>
+                    <input
+                      type="time"
+                      value={baseSleepInput}
+                      onChange={(e) => setBaseSleepInput(e.target.value)}
+                      className="bg-white/10 px-2 py-1 rounded text-white w-full outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-white/40 uppercase block">Base Wake</span>
+                    <input
+                      type="time"
+                      value={baseWakeInput}
+                      onChange={(e) => setBaseWakeInput(e.target.value)}
+                      className="bg-white/10 px-2 py-1 rounded text-white w-full outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-white/40 uppercase block">Target Sleep</span>
+                    <input
+                      type="time"
+                      value={targetSleepInput}
+                      onChange={(e) => setTargetSleepInput(e.target.value)}
+                      className="bg-white/10 px-2 py-1 rounded text-white w-full outline-none"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] text-white/40 uppercase block">Target Wake</span>
+                    <input
+                      type="time"
+                      value={targetWakeInput}
+                      onChange={(e) => setTargetWakeInput(e.target.value)}
+                      className="bg-white/10 px-2 py-1 rounded text-white w-full outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-white/60">Shift/Day:</span>
+                    <input
+                      type="number"
+                      value={shiftStepInput}
+                      onChange={(e) => setShiftStepInput(Number(e.target.value))}
+                      className="w-14 bg-white/10 px-2 py-0.5 rounded text-xs font-mono text-white outline-none"
+                    />
+                    <span className="text-[10px] font-mono text-white/40">mins</span>
+                  </div>
+
+                  <button
+                    onClick={handleSaveSleepConfig}
+                    className="px-3 py-1 bg-[#D71921] rounded-full text-xs font-medium text-white shadow-sm"
+                  >
+                    Save Changes
                   </button>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div
-              onClick={() => handleStartEditGoal(longTermGoal, 'long_term')}
-              className="cursor-pointer group py-1"
-            >
-              <p className="text-sm font-medium text-white group-hover:text-white/80 transition-colors">
-                {longTermGoal?.title || 'Production Telemetry Suite'}
-              </p>
-              <span className="text-[10px] text-white/40 font-ndot uppercase mt-1 block">
-                Tap to calibrate target date
-              </span>
-            </div>
-          )}
+            )}
+          </div>
+
+          <div className="pt-2 text-[10px] font-mono text-white/40 border-t border-white/10 mt-3 flex justify-between">
+            <span>Circadian Reset Goal</span>
+            <span>8h Rest Window</span>
+          </div>
         </div>
       </div>
 
       {/* ============================================================== */}
-      {/* WIDGET 4: 14-DAY FOCUS VS. DISTRACTED TREND (SMOKED GLASS CARD) */}
+      {/* WIDGET 4: 7-DAY WEEKLY SLEEP SCHEDULE GRAPH (CENTERPIECE) */}
       {/* ============================================================== */}
       <div className="col-span-12 bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-6 text-[#F2F2F4]">
         <div className="flex items-center justify-between mb-4">
-          <span className="text-[11px] font-ndot uppercase tracking-widest text-white/50 font-bold">
-            14-DAY TELEMETRY TREND
+          <div>
+            <span className="text-[11px] font-mono uppercase tracking-widest text-white/50 font-bold block">
+              WEEKLY SLEEP SCHEDULE GRAPH (7-DAY TIMELINE)
+            </span>
+            <span className="text-xs text-white/60 mt-0.5 block">
+              Visualizing bedtime &amp; wake-up times shifting from 2:00 PM down toward 8:00 AM target.
+            </span>
+          </div>
+
+          <div className="hidden sm:flex items-center gap-3 text-[10px] font-mono">
+            <span className="flex items-center gap-1.5 text-white/90">
+              <Sun size={12} className="text-amber-400" /> WAKE-UP LOG
+            </span>
+            <span className="flex items-center gap-1.5 text-[#D71921]">
+              <span className="w-2 h-2 rounded-full bg-[#D71921]" /> TARGET ZONE (12 AM - 8 AM)
+            </span>
+          </div>
+        </div>
+
+        {/* 7-Day Floating Timeline Chart */}
+        <div className="space-y-2.5 bg-white/[0.03] border border-white/[0.06] rounded-2xl p-4">
+          {weeklySleepData.map((item) => (
+            <div
+              key={item.dateKey}
+              onClick={() => onSelectDateKey?.(item.dateKey)}
+              className="flex items-center justify-between text-xs py-1 px-2 rounded-xl hover:bg-white/5 transition-colors cursor-pointer group"
+            >
+              {/* Day Label */}
+              <span className="font-mono text-xs text-white/70 w-16 shrink-0 group-hover:text-white">
+                {item.dayLabel}
+              </span>
+
+              {/* Horizontal Timeline Bar */}
+              <div className="flex-1 mx-3 h-5 bg-white/[0.05] rounded-lg relative overflow-hidden flex items-center">
+                {/* 12 AM to 8 AM Target Zone highlight (assumes 00:00 to 08:00 is first 33% of a 24h timeline) */}
+                <div
+                  className="absolute top-0 bottom-0 left-[20%] w-[33%] bg-[#D71921]/15 border-x border-[#D71921]/30"
+                  title="Target Sleep Zone: 12:00 AM -> 08:00 AM"
+                />
+
+                {/* Actual Sleep Window Pill */}
+                {item.durationMin > 0 ? (
+                  <div
+                    className="h-3.5 bg-white/20 group-hover:bg-[#D71921] rounded-md transition-colors flex items-center px-2 text-[9px] font-mono text-white/90"
+                    style={{
+                      width: `${Math.min(100, Math.max(25, (item.durationMin / (14 * 60)) * 100))}%`,
+                      marginLeft: '15%',
+                    }}
+                  >
+                    <span className="truncate">{item.sleep12} → {item.wake12}</span>
+                  </div>
+                ) : (
+                  <span className="text-[9px] font-mono text-white/20 pl-2">No sleep log</span>
+                )}
+              </div>
+
+              {/* Wake-Up Time Display */}
+              <div className="w-24 text-right font-mono text-xs font-medium shrink-0">
+                <span className={item.durationMin > 0 ? 'text-amber-300' : 'text-white/30'}>
+                  {item.wake12}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ============================================================== */}
+      {/* WIDGET 5: DAILY FOCUS VS. DISTRACTED HOURS (14-DAY BARS) */}
+      {/* ============================================================== */}
+      <div className="col-span-12 bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[28px] p-6 text-[#F2F2F4]">
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-[11px] font-mono uppercase tracking-widest text-white/50 font-bold">
+            DAILY FOCUS VS. DISTRACTED HOURS
           </span>
 
-          <div className="flex items-center gap-3 text-[10px] font-ndot">
+          <div className="flex items-center gap-3 text-[10px] font-mono">
             <span className="flex items-center gap-1.5 text-white/90">
               <span className="w-2 h-2 rounded-full bg-[#D71921]" /> FOCUSED
             </span>
@@ -427,7 +544,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
                       : 'bg-white/[0.06] group-hover:bg-white/[0.12]'
                   }`}
                 >
-                  {/* Distracted Segment (Frosted White) */}
+                  {/* Distracted Segment */}
                   {distractedPct > 0 && (
                     <div
                       className="w-full bg-white/25 rounded-t-full"
@@ -445,7 +562,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
 
                 {/* Day Number */}
                 <span
-                  className={`mt-1.5 font-ndot text-[9px] ${
+                  className={`mt-1.5 font-mono text-[9px] ${
                     isSelected ? 'text-white font-bold' : 'text-white/40 group-hover:text-white'
                   }`}
                 >
@@ -457,7 +574,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
         </div>
 
         {activeHoverData && (
-          <div className="mt-3 text-right text-xs font-ndot text-white/70">
+          <div className="mt-3 text-right text-xs font-mono text-white/70">
             {activeHoverData.dateKey}: <span className="text-[#D71921] font-bold">{activeHoverData.focusedHours.toFixed(1)}H FOCUSED</span> · <span className="text-white/40">{activeHoverData.distractedHours.toFixed(1)}H DRIFT</span>
           </div>
         )}

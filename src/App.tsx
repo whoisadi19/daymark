@@ -5,6 +5,8 @@ import { TopSpecificationBar } from './components/TopSpecificationBar';
 import { DailyLogSection } from './components/DailyLogSection';
 import { DeskTrackerSection } from './components/DeskTrackerSection';
 import { AnalyticsSection } from './components/AnalyticsSection';
+import { WidgetView } from './components/WidgetView';
+import { ShortcutsModal } from './components/ShortcutsModal';
 
 type ActiveTab = 'reflection' | 'tracker' | 'analytics';
 
@@ -12,8 +14,37 @@ export const App: React.FC = () => {
   const [selectedDateKey, setSelectedDateKey] = useState<string>(getLocalDateKey());
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<ActiveTab>('tracker');
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState<boolean>(false);
 
-  // Shared Desk Timer for top bar live pill & tracker tab
+  // Widget mode: detect via query param ?mode=widget or toggle state
+  const [isWidgetMode, setIsWidgetMode] = useState<boolean>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('mode') === 'widget';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleWidgetMode = () => {
+    setIsWidgetMode((prev) => {
+      const next = !prev;
+      try {
+        const url = new URL(window.location.href);
+        if (next) {
+          url.searchParams.set('mode', 'widget');
+        } else {
+          url.searchParams.delete('mode');
+        }
+        window.history.replaceState({}, '', url.toString());
+      } catch (e) {
+        console.error('Failed to update URL search params', e);
+      }
+      return next;
+    });
+  };
+
+  // Shared Desk Timer for top bar live pill, tracker tab, and widget view
   const deskTimer = useDeskTimer(selectedDateKey);
 
   useEffect(() => {
@@ -24,7 +55,7 @@ export const App: React.FC = () => {
     setDataRefreshTrigger((prev) => prev + 1);
   };
 
-  // Keyboard shortcut listener for tab switching: 1, 2, 3
+  // Keyboard shortcut listener for tab switching & shortcuts modal (? key)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -39,6 +70,9 @@ export const App: React.FC = () => {
         setActiveTab('tracker');
       } else if (e.key === '3') {
         setActiveTab('analytics');
+      } else if (e.key === '?') {
+        e.preventDefault();
+        setIsShortcutsOpen((prev) => !prev);
       }
     };
 
@@ -46,6 +80,31 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // ==============================================================
+  // COMPACT FLOATING WIDGET VIEWPORT (380px x 420px)
+  // ==============================================================
+  if (isWidgetMode) {
+    return (
+      <div className="min-h-screen bg-[#0A0A0C] text-[#F2F2F4] relative selection:bg-[#D71921] selection:text-white font-sans overflow-x-hidden flex flex-col items-center justify-center p-3 sm:p-6">
+        {/* Atmospheric Ambient Glow behind widget */}
+        <div className="fixed inset-0 -z-10 bg-[#0A0A0C] overflow-hidden pointer-events-none">
+          <div className="w-[300px] h-[300px] rounded-full bg-[#D71921]/15 blur-[90px] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+        </div>
+
+        <WidgetView
+          selectedDateKey={selectedDateKey}
+          timer={deskTimer}
+          onExitWidgetMode={toggleWidgetMode}
+        />
+
+        {isShortcutsOpen && <ShortcutsModal onClose={() => setIsShortcutsOpen(false)} />}
+      </div>
+    );
+  }
+
+  // ==============================================================
+  // FULL 3-TAB APPLICATION VIEWPORT
+  // ==============================================================
   return (
     <div className="min-h-screen bg-[#0A0A0C] text-[#F2F2F4] relative selection:bg-[#D71921] selection:text-white font-sans overflow-x-hidden flex flex-col">
       {/* ============================================================== */}
@@ -77,6 +136,9 @@ export const App: React.FC = () => {
           currentSessionTotalSec={deskTimer.currentSessionTotalSec}
           currentTab={activeTab}
           onSwitchTab={setActiveTab}
+          isWidgetMode={isWidgetMode}
+          onToggleWidgetMode={toggleWidgetMode}
+          onOpenShortcuts={() => setIsShortcutsOpen(true)}
         />
 
         {/* ============================================================== */}
@@ -121,7 +183,7 @@ export const App: React.FC = () => {
                   : 'text-white/60 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
-              <span className="font-ndot mr-1">01</span>
+              <span className="font-mono mr-1">01</span>
               <span>· Reflection</span>
             </button>
 
@@ -134,7 +196,7 @@ export const App: React.FC = () => {
                   : 'text-white/60 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
-              <span className="font-ndot">02</span>
+              <span className="font-mono">02</span>
               <span>· Tracker</span>
               {deskTimer.isClockedIn && (
                 <span
@@ -156,12 +218,15 @@ export const App: React.FC = () => {
                   : 'text-white/60 hover:text-white hover:bg-white/[0.06]'
               }`}
             >
-              <span className="font-ndot mr-1">03</span>
+              <span className="font-mono mr-1">03</span>
               <span>· Analytics</span>
             </button>
           </div>
         </nav>
       </div>
+
+      {/* Keyboard Shortcuts Cheat-Sheet Modal */}
+      {isShortcutsOpen && <ShortcutsModal onClose={() => setIsShortcutsOpen(false)} />}
     </div>
   );
 };

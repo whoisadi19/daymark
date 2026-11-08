@@ -14,12 +14,10 @@ export default {
         ivory: '#ECECEF',
       },
       fontFamily: {
-        ndot: ['"DotGothic16"', '"Silkscreen"', 'monospace'],
         sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       letterSpacing: {
-        ndot: '0.04em',
         tightest: '-0.04em',
         tighter: '-0.03em',
         tight: '-0.02em',
