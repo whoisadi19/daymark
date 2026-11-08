@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CalibrationData } from '../hooks/useDeskTimer';
 import { formatSecondsToDigital } from '../db/db';
 import { X } from 'lucide-react';
@@ -25,6 +25,19 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
   const handleCommit = () => {
     onCommit(calibratedFocusedSec, calibratedDistractedSec);
   };
+
+  // Keyboard accessibility: Escape to cancel, Enter to commit
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCancel();
+      } else if (e.key === 'Enter') {
+        handleCommit();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [calibratedFocusedSec, calibratedDistractedSec, onCancel]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 animate-in fade-in duration-150">

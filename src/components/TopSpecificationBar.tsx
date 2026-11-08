@@ -188,6 +188,7 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
                   setSleepTime(e.target.value);
                   saveSleep(e.target.value, wakeTime);
                 }}
+                onKeyDown={(e) => e.key === 'Enter' && setIsEditingSleep(false)}
                 className="bg-transparent font-mono text-xs text-ink outline-none"
               />
               <span className="text-muted">→</span>
@@ -198,6 +199,7 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
                   setWakeTime(e.target.value);
                   saveSleep(sleepTime, e.target.value);
                 }}
+                onKeyDown={(e) => e.key === 'Enter' && setIsEditingSleep(false)}
                 className="bg-transparent font-mono text-xs text-ink outline-none"
               />
               <button

@@ -166,3 +166,4 @@ export const SettingsPopover: React.FC<SettingsPopoverProps> = ({
     </div>
   );
 };
+
