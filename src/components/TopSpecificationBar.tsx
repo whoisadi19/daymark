@@ -1,7 +1,8 @@
 import React from 'react';
 import { getLocalDateKey, formatSecondsToDigital } from '../db/db';
-import { ChevronLeft, ChevronRight, Minimize2, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Minimize2, Maximize2, Minus, X } from 'lucide-react';
 import { SettingsPopover } from './SettingsPopover';
+import { isTauri, minimizeNativeWindow, closeNativeWindow } from '../utils/tauriWindow';
 
 interface TopSpecificationBarProps {
   selectedDateKey: string;
@@ -48,9 +49,12 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
   const isFocused = currentState === 'focused';
 
   return (
-    <header className="w-full bg-[#161618]/80 backdrop-blur-2xl border border-white/10 rounded-full px-4 sm:px-5 py-2.5 flex items-center justify-between shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 relative z-50">
+    <header
+      data-tauri-drag-region
+      className="w-full bg-[#161618]/80 backdrop-blur-2xl border border-white/10 rounded-full px-4 sm:px-5 py-2.5 flex items-center justify-between shadow-[0_10px_30px_rgba(0,0,0,0.5)] shrink-0 relative z-50 select-none cursor-default"
+    >
       {/* Left: Red dot + DAYMARK ASCII Stamp */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5 pointer-events-none">
         <span className="w-2 h-2 rounded-full bg-[#D71921] shadow-[0_0_10px_#D71921]" />
         <span className="font-mono font-bold text-xs tracking-wider text-white">
           DAYMARK
@@ -90,7 +94,7 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
         )}
       </div>
 
-      {/* Right: Timer pill (if running outside tracker) + Widget Mode Toggle + Settings */}
+      {/* Right: Timer pill (if running outside tracker) + Widget Mode Toggle + Settings + Native Controls */}
       <div className="flex items-center gap-2">
         {/* Pulsing Timer Mini Pill */}
         {isClockedIn && currentTab !== 'tracker' && !isWidgetMode && (
@@ -125,7 +129,7 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
               ? 'bg-[#D71921] border-[#D71921] text-white shadow-[0_0_12px_rgba(215,25,33,0.5)]'
               : 'bg-white/[0.06] hover:bg-white/[0.12] border-white/10 text-white/70 hover:text-white'
           }`}
-          title={isWidgetMode ? 'Exit Compact Widget Mode' : 'Enter Compact Floating Widget Mode (380px)'}
+          title={isWidgetMode ? 'Exit Compact Widget Mode (Restore 960x680)' : 'Enter Compact Floating Widget Mode (380x440 Always-On-Top)'}
         >
           {isWidgetMode ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
         </button>
@@ -136,6 +140,26 @@ export const TopSpecificationBar: React.FC<TopSpecificationBarProps> = ({
           onDataRefresh={onDataResetOrSeed}
           onOpenShortcuts={onOpenShortcuts}
         />
+
+        {/* Native Linux Desktop Controls (Frameless Window) */}
+        {isTauri() && (
+          <div className="flex items-center gap-1 pl-1 ml-1 border-l border-white/10">
+            <button
+              onClick={minimizeNativeWindow}
+              className="w-7 h-7 rounded-full bg-white/[0.04] hover:bg-white/[0.12] text-white/50 hover:text-white flex items-center justify-center transition-colors"
+              title="Minimize Window"
+            >
+              <Minus size={12} />
+            </button>
+            <button
+              onClick={closeNativeWindow}
+              className="w-7 h-7 rounded-full bg-white/[0.04] hover:bg-[#D71921] text-white/50 hover:text-white flex items-center justify-center transition-colors"
+              title="Close DAYMARK"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

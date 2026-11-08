@@ -7,6 +7,7 @@ import { DeskTrackerSection } from './components/DeskTrackerSection';
 import { AnalyticsSection } from './components/AnalyticsSection';
 import { WidgetView } from './components/WidgetView';
 import { ShortcutsModal } from './components/ShortcutsModal';
+import { resizeNativeWindowForMode } from './utils/tauriWindow';
 
 type ActiveTab = 'reflection' | 'tracker' | 'analytics';
 
@@ -40,9 +41,14 @@ export const App: React.FC = () => {
       } catch (e) {
         console.error('Failed to update URL search params', e);
       }
+      resizeNativeWindowForMode(next);
       return next;
     });
   };
+
+  useEffect(() => {
+    resizeNativeWindowForMode(isWidgetMode);
+  }, []);
 
   // Shared Desk Timer for top bar live pill, tracker tab, and widget view
   const deskTimer = useDeskTimer(selectedDateKey);

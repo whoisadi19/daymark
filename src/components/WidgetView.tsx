@@ -4,7 +4,8 @@ import { db, formatSecondsToDigital, formatTaskDuration } from '../db/db';
 import { UseDeskTimerReturn } from '../hooks/useDeskTimer';
 import { useDailyRollover } from '../hooks/useDailyRollover';
 import { CalibrationModal } from './CalibrationModal';
-import { Maximize2, Check, Play, ChevronDown } from 'lucide-react';
+import { Maximize2, Check, Play, ChevronDown, Minus, X } from 'lucide-react';
+import { isTauri, minimizeNativeWindow, closeNativeWindow } from '../utils/tauriWindow';
 
 interface WidgetViewProps {
   selectedDateKey: string;
@@ -60,8 +61,8 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
       {/* Smoked Dark Glass Widget Card */}
       <div className="bg-[#161618]/90 backdrop-blur-2xl border border-white/10 rounded-[28px] p-5 shadow-[0_25px_60px_rgba(0,0,0,0.8)] text-[#F2F2F4] flex flex-col gap-4">
         {/* Widget Top Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-white/[0.08]">
-          <div className="flex items-center gap-2">
+        <div data-tauri-drag-region className="flex items-center justify-between pb-3 border-b border-white/[0.08] cursor-move">
+          <div className="flex items-center gap-2 pointer-events-none">
             <span className="w-2 h-2 rounded-full bg-[#D71921] shadow-[0_0_8px_#D71921]" />
             <span className="font-mono font-bold text-xs tracking-wider text-white">DAYMARK</span>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-white/10 text-white/60">
@@ -69,15 +70,33 @@ export const WidgetView: React.FC<WidgetViewProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-white/50 font-mono">{dateFormatted}</span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] text-white/50 font-mono mr-1">{dateFormatted}</span>
             <button
               onClick={onExitWidgetMode}
               className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-all"
-              title="Expand to Full View"
+              title="Expand to Full View (960x680)"
             >
               <Maximize2 size={12} />
             </button>
+            {isTauri() && (
+              <>
+                <button
+                  onClick={minimizeNativeWindow}
+                  className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-all"
+                  title="Minimize Widget"
+                >
+                  <Minus size={12} />
+                </button>
+                <button
+                  onClick={closeNativeWindow}
+                  className="w-7 h-7 rounded-full bg-white/[0.06] hover:bg-[#D71921] border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-all"
+                  title="Close DAYMARK"
+                >
+                  <X size={12} />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
