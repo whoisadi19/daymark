@@ -395,3 +395,4 @@ export async function seedRealisticDemoTelemetry(): Promise<void> {
   await db.tasks.bulkPut(tasksToInsert);
   await db.deskSessions.bulkPut(sessionsToInsert);
 }
+

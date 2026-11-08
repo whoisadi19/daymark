@@ -355,3 +355,4 @@ export function useDeskTimer(selectedDateKey: string) {
     refreshTotals: () => refreshCompletedDayTotals(selectedDateKey),
   };
 }
+
