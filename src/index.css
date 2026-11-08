@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-canvas: #F4F1EA;
+  --bg-panel: #EAE5DB;
+  --bg-ink: #141413;
+  --text-primary: #141413;
+  --text-muted: #6E6A63;
+  --border-grid: #D0C9BC;
+  --accent-orange: #D9381E;
+  --accent-amber: #C87D12;
+  --accent-olive: #2D5A27;
+}
+
+/* Tabular nums by default for mono and metrics */
+.font-mono,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle dot-grid paper texture: 1px dots every 20px */
+.dot-grid-pattern {
+  background-color: var(--bg-canvas);
+  background-image: radial-gradient(var(--border-grid) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Dark dot-grid texture for Carbon Matte Black panels */
+.dark-dot-grid-pattern {
+  background-color: var(--bg-ink);
+  background-image: radial-gradient(#2A2A28 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Exposed hairline structural borders */
+.border-plate {
+  border: 1px solid var(--border-grid);
+}
+
+.border-plate-t {
+  border-top: 1px solid var(--border-grid);
+}
+
+.border-plate-b {
+  border-bottom: 1px solid var(--border-grid);
+}
+
+.border-plate-l {
+  border-left: 1px solid var(--border-grid);
+}
+
+.border-plate-r {
+  border-right: 1px solid var(--border-grid);
+}
+
+/* Mechanical Button Style */
+.btn-mechanical {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0;
+  border: 1px solid var(--border-grid);
+  background-color: var(--bg-panel);
+  color: var(--text-primary);
+  transition: background-color 0.1s ease, transform 0.05s ease, border-color 0.1s ease;
+  user-select: none;
+}
+
+.btn-mechanical:hover {
+  background-color: #DFD9CE;
+  border-color: #BAAF9F;
+}
+
+.btn-mechanical:active {
+  transform: translateY(1px);
+  background-color: #D5CEBF;
+}
+
+/* Braun Orange Primary Action */
+.btn-mechanical-orange {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.65rem;
+  border-radius: 0;
+  border: 1px solid #B02B16;
+  background-color: var(--accent-orange);
+  color: #FFFFFF;
+  transition: background-color 0.1s ease, transform 0.05s ease;
+  user-select: none;
+}
+
+.btn-mechanical-orange:hover {
+  background-color: #E24429;
+}
+
+.btn-mechanical-orange:active {
+  transform: translateY(1px);
+  background-color: #BF2D17;
+}
+
+/* Dark Instrument Button */
+.btn-dark-mechanical {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0;
+  border: 1px solid #363634;
+  background-color: #20201E;
+  color: #EAE5DB;
+  transition: all 0.1s ease;
+  user-select: none;
+}
+
+.btn-dark-mechanical:hover {
+  background-color: #2D2D2A;
+  border-color: #4A4A47;
+  color: #FFFFFF;
+}
+
+.btn-dark-mechanical:active {
+  transform: translateY(1px);
+  background-color: #1A1A18;
+}
+
+/* Mechanical Sharp Checkbox */
+input[type="checkbox"].mech-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 1.5px solid var(--text-primary);
+  border-radius: 0;
+  background-color: transparent;
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  margin: 0;
+  transition: background-color 0.1s ease, border-color 0.1s ease;
+}
+
+input[type="checkbox"].mech-checkbox:hover {
+  background-color: rgba(20, 20, 19, 0.06);
+}
+
+input[type="checkbox"].mech-checkbox:checked {
+  background-color: var(--accent-olive);
+  border-color: var(--accent-olive);
+}
+
+input[type="checkbox"].mech-checkbox:checked::before {
+  content: "";
+  width: 0.55rem;
+  height: 0.32rem;
+  border-left: 2px solid #FFFFFF;
+  border-bottom: 2px solid #FFFFFF;
+  transform: rotate(-45deg) translate(0.05rem, -0.05rem);
+}
+
+/* Custom crisp scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border-grid);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-grid);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
