@@ -1,14 +1,21 @@
 import React from 'react';
-import { useDeskTimer } from '../hooks/useDeskTimer';
+import { useDeskTimer, UseDeskTimerReturn } from '../hooks/useDeskTimer';
 import { formatSecondsToDigital } from '../db/db';
 import { CalibrationModal } from './CalibrationModal';
-import { Play } from 'lucide-react';
+import { Play, Square, Zap, Coffee } from 'lucide-react';
 
 interface DeskTrackerSectionProps {
   selectedDateKey: string;
+  timer?: UseDeskTimerReturn;
 }
 
-export const DeskTrackerSection: React.FC<DeskTrackerSectionProps> = ({ selectedDateKey }) => {
+export const DeskTrackerSection: React.FC<DeskTrackerSectionProps> = ({
+  selectedDateKey,
+  timer: externalTimer,
+}) => {
+  const localTimer = useDeskTimer(selectedDateKey);
+  const activeTimer = externalTimer || localTimer;
+
   const {
     isClockedIn,
     currentState,
@@ -23,144 +30,170 @@ export const DeskTrackerSection: React.FC<DeskTrackerSectionProps> = ({ selected
     cancelClockOut,
     showCalibrationModal,
     calibrationData,
-  } = useDeskTimer(selectedDateKey);
+  } = activeTimer;
 
   const isFocused = currentState === 'focused';
 
   return (
     <>
-      <section
-        className={`bg-[#FAF9F6] border rounded-2xl p-6 shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-colors ${
-          isClockedIn
-            ? isFocused
-              ? 'border-[#E5391A]'
-              : 'border-[#D97706]'
-            : 'border-[#DCD9D0]'
-        }`}
-      >
-        {/* Header Row: Label + Live Efficiency Pill */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isClockedIn
-                  ? isFocused
-                    ? 'bg-[#E5391A] animate-pulse'
-                    : 'bg-[#D97706] animate-pulse'
-                  : 'bg-[#9E9B93]'
+      <section className="max-w-[560px] mx-auto w-full my-auto flex flex-col gap-4 animate-in fade-in duration-200">
+        {/* 1. Main Hero Widget (Time at Desk - Large Smoked Glass Squircle) */}
+        <div className="bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-[32px] p-7 sm:p-8 text-white relative overflow-hidden">
+          {/* Subtle Ambient Red Flare inside Card when active */}
+          {isClockedIn && (
+            <div
+              className={`absolute -top-14 -right-14 w-40 h-40 rounded-full blur-3xl pointer-events-none transition-all duration-700 ${
+                isFocused ? 'bg-[#D71921]/30' : 'bg-amber-500/20'
               }`}
             />
-            <span className="text-[11px] font-mono uppercase tracking-wider text-[#686660] font-medium">
-              Desk Telemetry
+          )}
+
+          {/* Top Row: Label & Efficiency Pill */}
+          <div className="flex items-center justify-between relative z-10">
+            <span className="text-[11px] font-ndot uppercase tracking-widest text-white/50 font-bold flex items-center gap-2">
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  isClockedIn
+                    ? isFocused
+                      ? 'bg-[#D71921] shadow-[0_0_8px_#D71921] animate-pulse'
+                      : 'bg-amber-400 shadow-[0_0_8px_#FBBF24] animate-pulse'
+                    : 'bg-white/20'
+                }`}
+              />
+              TIME AT DESK
             </span>
+
+            <div className="bg-white/[0.08] border border-white/10 px-3 py-1 rounded-full text-xs font-ndot font-medium text-white">
+              {totalDayAtDeskSec > 0 ? `${deskEfficiencyPercent}% EFFICIENCY` : '0% EFFICIENCY'}
+            </div>
           </div>
 
-          <div className="bg-[#F2F0EA] px-2.5 py-1 rounded-full text-xs font-mono font-medium text-[#111110]">
-            {totalDayAtDeskSec > 0 ? `${deskEfficiencyPercent}% EFFICIENCY` : '0% EFFICIENCY'}
+          {/* Center: Massive NDot Dot-Matrix Digits */}
+          <div className="my-6 sm:my-8 text-center relative z-10">
+            <div className="font-ndot text-6xl sm:text-7xl tracking-wider text-white tabular-nums drop-shadow-md">
+              {formatSecondsToDigital(totalDayAtDeskSec)}
+            </div>
+          </div>
+
+          {/* Bottom subtle progress line */}
+          <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden flex">
+            {totalDayAtDeskSec > 0 ? (
+              <>
+                <div
+                  className="h-full bg-[#D71921] transition-all duration-300"
+                  style={{ width: `${(totalDayFocusedSec / totalDayAtDeskSec) * 100}%` }}
+                />
+                <div
+                  className="h-full bg-white/20 transition-all duration-300"
+                  style={{ width: `${(totalDayDistractedSec / totalDayAtDeskSec) * 100}%` }}
+                />
+              </>
+            ) : (
+              <div className="h-full w-full bg-white/5" />
+            )}
           </div>
         </div>
 
-        {/* Hero Counter: AT DESK single massive typographic centerpiece */}
-        <div className="my-5">
-          <span className="block text-[11px] font-mono uppercase tracking-wider text-[#686660] mb-1">
-            At Desk Total
-          </span>
-          <div className="text-6xl font-semibold tracking-[-0.04em] tabular-nums text-[#111110]">
-            {formatSecondsToDigital(totalDayAtDeskSec)}
-          </div>
-        </div>
-
-        {/* Split Metric Wells (Focused & Distracted) */}
-        <div className="grid grid-cols-2 gap-2.5 my-5">
-          {/* Left Well: Focused */}
+        {/* 2. Middle 2-Column Widget Row */}
+        <div className="grid grid-cols-2 gap-4">
+          {/* Left Square Widget: Focused Hours */}
           <div
             onClick={() => {
               if (isClockedIn && !isFocused) toggleState();
             }}
-            className={`rounded-xl p-3.5 border transition-all cursor-pointer ${
+            className={`rounded-[28px] p-5 sm:p-6 transition-all duration-300 cursor-pointer select-none flex flex-col justify-between min-h-[140px] relative overflow-hidden ${
               isClockedIn && isFocused
-                ? 'bg-[#FFF5F2] border-[#E5391A]/40 shadow-sm'
-                : 'bg-[#F2F0EA] border-transparent hover:border-[#DCD9D0]'
+                ? 'bg-[#D71921] text-white border border-[#FF4D54]/30 shadow-[0_12px_30px_rgba(215,25,33,0.35)] scale-[1.02]'
+                : 'bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] text-white/70 hover:border-white/20'
             }`}
           >
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#E5391A]" />
-              <span className="text-[11px] font-mono uppercase tracking-wider text-[#686660] font-medium">
-                Focused
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-ndot uppercase tracking-widest font-semibold flex items-center gap-1.5 opacity-90">
+                <Zap size={12} />
+                FOCUSED
               </span>
+              {isClockedIn && isFocused && (
+                <span className="w-2 h-2 rounded-full bg-white shadow-[0_0_8px_#FFF] animate-pulse" />
+              )}
             </div>
-            <div
-              className={`text-2xl font-semibold tracking-tight tabular-nums ${
-                isClockedIn && isFocused ? 'text-[#E5391A]' : 'text-[#111110]'
-              }`}
-            >
+
+            <div className="font-ndot text-3xl sm:text-4xl tracking-wider text-white tabular-nums my-1">
               {formatSecondsToDigital(totalDayFocusedSec)}
             </div>
+
+            <span className="text-[10px] font-ndot opacity-60 uppercase">
+              {isClockedIn && isFocused ? 'ACTIVE STATE' : 'TAP TO FOCUS'}
+            </span>
           </div>
 
-          {/* Right Well: Distracted */}
+          {/* Right Square Widget: Distracted Hours */}
           <div
             onClick={() => {
               if (isClockedIn && isFocused) toggleState();
             }}
-            className={`rounded-xl p-3.5 border transition-all cursor-pointer ${
+            className={`rounded-[28px] p-5 sm:p-6 transition-all duration-300 cursor-pointer select-none flex flex-col justify-between min-h-[140px] relative overflow-hidden ${
               isClockedIn && !isFocused
-                ? 'bg-[#FFFBEB] border-[#D97706]/40 shadow-sm'
-                : 'bg-[#F2F0EA] border-transparent hover:border-[#DCD9D0]'
+                ? 'bg-[#1E1A16] text-amber-200 border border-amber-400/50 shadow-[0_0_30px_rgba(251,191,36,0.2)] scale-[1.02]'
+                : 'bg-[#161618]/75 backdrop-blur-2xl border border-white/[0.09] shadow-[0_20px_50px_rgba(0,0,0,0.6)] text-white/70 hover:border-white/20'
             }`}
           >
-            <div className="flex items-center gap-1.5 mb-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
-              <span className="text-[11px] font-mono uppercase tracking-wider text-[#686660] font-medium">
-                Distracted
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-ndot uppercase tracking-widest font-semibold flex items-center gap-1.5 opacity-90">
+                <Coffee size={12} />
+                DISTRACTED
               </span>
+              {isClockedIn && !isFocused && (
+                <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_#FBBF24] animate-pulse" />
+              )}
             </div>
-            <div
-              className={`text-2xl font-semibold tracking-tight tabular-nums ${
-                isClockedIn && !isFocused ? 'text-[#D97706]' : 'text-[#686660]'
-              }`}
-            >
+
+            <div className="font-ndot text-3xl sm:text-4xl tracking-wider text-white tabular-nums my-1">
               {formatSecondsToDigital(totalDayDistractedSec)}
             </div>
+
+            <span className="text-[10px] font-ndot opacity-60 uppercase">
+              {isClockedIn && !isFocused ? 'ACTIVE STATE' : 'TAP TO DRIFT'}
+            </span>
           </div>
         </div>
 
-        {/* Bottom Action Row */}
-        <div>
+        {/* 3. Bottom Pill Controls */}
+        <div className="flex items-center gap-3 pt-2">
           {!isClockedIn ? (
             <button
               onClick={clockIn}
-              className="w-full h-11 rounded-xl bg-[#111110] text-white hover:bg-[#272725] active:scale-[0.99] font-medium text-sm flex items-center justify-center gap-2 transition"
+              className="flex-1 h-14 rounded-full bg-[#ECECEF] hover:bg-white text-[#0A0A0C] font-semibold text-sm flex items-center justify-center gap-2.5 shadow-lg transition active:scale-[0.98]"
             >
-              <Play size={14} fill="currentColor" />
+              <Play size={16} fill="currentColor" />
               <span>Start Desk Session</span>
             </button>
           ) : (
-            <div className="flex items-center gap-2.5">
+            <>
+              {/* High-Contrast Ivory Pill Button (Toggle Focus/Drift via Spacebar) */}
               <button
                 onClick={toggleState}
-                className={`flex-1 h-11 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition active:scale-[0.99] shadow-sm ${
-                  isFocused
-                    ? 'bg-[#E5391A] hover:bg-[#D43417] text-white'
-                    : 'bg-[#D97706] hover:bg-[#C26A05] text-white'
-                }`}
+                className="flex-1 h-14 rounded-full bg-[#ECECEF] hover:bg-white text-[#0A0A0C] font-semibold text-sm flex items-center justify-center gap-2.5 shadow-lg transition active:scale-[0.98]"
               >
-                <span>{isFocused ? 'Currently Focused' : 'Currently Drifting'}</span>
-                <span className="text-xs opacity-75 font-mono">· Space to flip</span>
+                <span>{isFocused ? 'Switch to Distracted' : 'Switch to Focused'}</span>
+                <span className="text-[10px] font-ndot bg-[#0A0A0C]/10 px-2 py-0.5 rounded-full uppercase">
+                  Space
+                </span>
               </button>
 
+              {/* Circular Crimson Stop Button */}
               <button
                 onClick={requestClockOut}
-                className="h-11 px-4 rounded-xl bg-[#F2F0EA] hover:bg-[#EAE7DF] text-[#111110] font-medium text-sm border border-[#DCD9D0] transition shrink-0"
+                className="w-14 h-14 rounded-full bg-[#D71921] hover:bg-[#C0151D] flex items-center justify-center text-white shrink-0 shadow-[0_12px_30px_rgba(215,25,33,0.35)] transition active:scale-95"
+                title="Stop & Calibrate Session"
               >
-                End Session
+                <Square size={16} fill="currentColor" />
               </button>
-            </div>
+            </>
           )}
         </div>
       </section>
 
-      {/* Calibration Modal */}
+      {/* Nothing OS Frosted Calibration Modal */}
       {showCalibrationModal && calibrationData && (
         <CalibrationModal
           data={calibrationData}

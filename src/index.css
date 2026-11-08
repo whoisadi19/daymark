@@ -3,76 +3,74 @@
 @tailwind utilities;
 
 :root {
-  --bg-viewport: #E8E6DF;
-  --bg-card: #FAF9F6;
-  --border-card: #DCD9D0;
-  --bg-well: #F2F0EA;
-  --border-well: #E5E2D9;
-  --text-ink: #111110;
-  --text-secondary: #686660;
-  --text-muted: #9E9B93;
-  --accent-vermilion: #E5391A;
-  --accent-amber: #D97706;
+  --color-crimson: #D71921;
 }
 
 body {
-  background-color: var(--bg-viewport);
-  color: var(--text-ink);
+  background-color: #0A0A0C;
+  color: #F2F2F4;
   font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   letter-spacing: -0.02em;
   min-height: 100vh;
+}
+
+.font-ndot {
+  font-family: 'DotGothic16', 'Silkscreen', monospace;
+  letter-spacing: 0.04em;
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
-/* Minimalist tactile checkbox */
-input[type="checkbox"].bento-checkbox {
+/* Nothing OS Circular Checkbox */
+input[type="checkbox"].nothing-checkbox {
   appearance: none;
   -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border: 1.5px solid #C8C5BC;
-  border-radius: 5px;
-  background-color: #FAF9F6;
+  width: 20px;
+  height: 20px;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background-color: transparent;
   display: inline-grid;
   place-content: center;
   cursor: pointer;
   margin: 0;
-  transition: all 0.12s ease;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-input[type="checkbox"].bento-checkbox:hover {
-  border-color: #111110;
+input[type="checkbox"].nothing-checkbox:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
-input[type="checkbox"].bento-checkbox:checked {
-  background-color: #111110;
-  border-color: #111110;
+input[type="checkbox"].nothing-checkbox:checked {
+  background-color: #D71921;
+  border-color: #D71921;
+  box-shadow: 0 0 12px rgba(215, 25, 33, 0.5);
 }
 
-input[type="checkbox"].bento-checkbox:checked::before {
+input[type="checkbox"].nothing-checkbox:checked::before {
   content: "";
-  width: 9px;
-  height: 5.5px;
-  border-left: 2px solid #FAF9F6;
-  border-bottom: 2px solid #FAF9F6;
+  width: 8px;
+  height: 5px;
+  border-left: 2px solid #FFFFFF;
+  border-bottom: 2px solid #FFFFFF;
   transform: rotate(-45deg) translate(0.5px, -0.5px);
 }
 
-/* Scrollbars */
+/* Subtle scrollbars */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D5D2C7;
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #B8B5AA;
+  background: rgba(255, 255, 255, 0.3);
 }

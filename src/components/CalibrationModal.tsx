@@ -39,43 +39,44 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
   }, [calibratedFocusedSec, calibratedDistractedSec, onCancel]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4 animate-in fade-in duration-150">
-      <div className="w-full max-w-md bg-[#FAF9F6] border border-[#DCD9D0] shadow-xl rounded-2xl p-6 text-[#111110] relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-150">
+      <div className="w-full max-w-md bg-[#161618]/95 backdrop-blur-2xl border border-white/10 shadow-[0_25px_60px_rgba(0,0,0,0.9)] rounded-[32px] p-7 text-white relative">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-semibold text-base text-[#111110]">
+          <h3 className="font-semibold text-base text-white flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#D71921]" />
             Session Calibration
           </h3>
           <button
             onClick={onCancel}
-            className="text-[#9E9B93] hover:text-[#111110] p-1 rounded-md"
+            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors"
             title="Cancel"
           >
-            <X size={16} />
+            <X size={15} />
           </button>
         </div>
 
-        <p className="text-xs text-[#686660] mb-5 leading-relaxed">
-          Session duration: <strong className="text-[#111110] font-mono">{formatSecondsToDigital(totalSeconds, false)}</strong>. Adjust the split if you stepped away or forgot to toggle:
+        <p className="text-xs text-white/60 mb-6 leading-relaxed">
+          Session duration: <strong className="text-white font-ndot text-sm">{formatSecondsToDigital(totalSeconds, false)}</strong>. Adjust the split if you stepped away or forgot to toggle:
         </p>
 
         {/* Recessed Split Well */}
-        <div className="bg-[#F2F0EA] border border-[#E5E2D9] rounded-xl p-4 mb-5 space-y-3">
-          <div className="flex justify-between items-center text-xs font-mono">
-            <span className="text-[#E5391A] font-medium">
-              Focused: {formatSecondsToDigital(calibratedFocusedSec, false)} ({focusedPercent}%)
+        <div className="bg-white/[0.04] border border-white/[0.08] rounded-2xl p-4 mb-6 space-y-3.5">
+          <div className="flex justify-between items-center text-xs font-ndot">
+            <span className="text-[#D71921] font-bold">
+              FOCUSED: {formatSecondsToDigital(calibratedFocusedSec, false)} ({focusedPercent}%)
             </span>
-            <span className="text-[#D97706] font-medium">
-              Distracted: {formatSecondsToDigital(calibratedDistractedSec, false)} ({100 - focusedPercent}%)
+            <span className="text-white/60 font-medium">
+              DRIFT: {formatSecondsToDigital(calibratedDistractedSec, false)} ({100 - focusedPercent}%)
             </span>
           </div>
 
-          <div className="w-full h-2 rounded-full overflow-hidden flex bg-[#E5E2D9]">
+          <div className="w-full h-2 rounded-full overflow-hidden flex bg-white/10">
             <div
-              className="h-full bg-[#E5391A] transition-all duration-75"
+              className="h-full bg-[#D71921] transition-all duration-75 shadow-[0_0_10px_#D71921]"
               style={{ width: `${focusedPercent}%` }}
             />
             <div
-              className="h-full bg-[#D97706] transition-all duration-75"
+              className="h-full bg-white/30 transition-all duration-75"
               style={{ width: `${100 - focusedPercent}%` }}
             />
           </div>
@@ -87,13 +88,13 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
             step="1"
             value={focusedPercent}
             onChange={(e) => setFocusedPercent(Number(e.target.value))}
-            className="w-full h-1.5 bg-[#E5E2D9] accent-[#111110] cursor-pointer rounded-lg"
+            className="w-full h-1.5 bg-white/15 accent-[#D71921] cursor-pointer rounded-lg"
           />
 
-          <div className="flex justify-between text-[10px] text-[#9E9B93] font-mono">
-            <span>All Distracted</span>
-            <span>Balanced</span>
-            <span>All Focused</span>
+          <div className="flex justify-between text-[10px] text-white/40 font-ndot">
+            <span>ALL DISTRACTED</span>
+            <span>BALANCED</span>
+            <span>ALL FOCUSED</span>
           </div>
         </div>
 
@@ -101,14 +102,14 @@ export const CalibrationModal: React.FC<CalibrationModalProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="px-3.5 py-2 text-xs text-[#686660] hover:text-[#111110] font-medium transition-colors"
+            className="px-4 py-2.5 text-xs text-white/60 hover:text-white font-medium transition-colors"
           >
             Resume Session
           </button>
           <button
             type="button"
             onClick={handleCommit}
-            className="px-4 py-2 text-xs bg-[#111110] hover:bg-[#272725] text-white font-medium rounded-xl transition-colors shadow-sm"
+            className="px-5 py-2.5 text-xs bg-[#ECECEF] hover:bg-white text-[#0A0A0C] font-semibold rounded-full transition-all active:scale-95 shadow-md"
           >
             Commit to Log
           </button>

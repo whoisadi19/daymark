@@ -356,3 +356,6 @@ export function useDeskTimer(selectedDateKey: string) {
   };
 }
 
+export type UseDeskTimerReturn = ReturnType<typeof useDeskTimer>;
+
+
