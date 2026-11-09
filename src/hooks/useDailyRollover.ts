@@ -126,20 +126,10 @@ export function useDailyRollover(todayDateKey = getLocalDateKey()) {
     soundEngine.playKeyClick();
   }, [todayDateKey]);
 
-  // Add task to Tomorrow (Strictly max 5 slots)
+  // Add task to Tomorrow (Unlimited tasks)
   const addTomorrowTask = useCallback(async (title: string, linkedToGoal = false): Promise<boolean> => {
     const trimmed = title.trim();
     if (!trimmed) return false;
-
-    const currentCount = await db.tasks
-      .where('dateKey')
-      .equals(todayDateKey)
-      .and(t => t.listType === 'tomorrow')
-      .count();
-
-    if (currentCount >= 5) {
-      return false; // Capped at 5
-    }
 
     const newTask: TaskItem = {
       id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,

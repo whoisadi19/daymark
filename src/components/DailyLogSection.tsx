@@ -65,7 +65,6 @@ export const DailyLogSection: React.FC<DailyLogSectionProps> = ({ selectedDateKe
   const todayTotalCount = todayTasks?.length || 0;
   const todayPercent = todayTotalCount > 0 ? Math.round((todayCompletedCount / todayTotalCount) * 100) : 0;
   const tomorrowCount = tomorrowTasks?.length || 0;
-  const isTomorrowFull = tomorrowCount >= 5;
 
   return (
     <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4 my-auto animate-in fade-in duration-200">
@@ -94,8 +93,8 @@ export const DailyLogSection: React.FC<DailyLogSectionProps> = ({ selectedDateKe
             </div>
           </div>
 
-          {/* Tasks List */}
-          <div className="my-4 space-y-2">
+          {/* Tasks List with Clean Scrollable View */}
+          <div className="my-4 space-y-2 overflow-y-auto max-h-[340px] pr-1">
             {todayTasks && todayTasks.map((task: TaskItem) => {
               const durationStr = formatTaskDuration(task.focusedSeconds);
 
@@ -162,7 +161,7 @@ export const DailyLogSection: React.FC<DailyLogSectionProps> = ({ selectedDateKe
                     {/* Delete Task */}
                     <button
                       onClick={() => deleteTask(task.id)}
-                      className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white p-1 transition-opacity"
+                      className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white p-1 transition-opacity cursor-pointer"
                       title="Delete task"
                     >
                       <X size={13} />
@@ -195,7 +194,7 @@ export const DailyLogSection: React.FC<DailyLogSectionProps> = ({ selectedDateKe
               <button
                 type="button"
                 onClick={() => setNewTodayGoal(!newTodayGoal)}
-                className={`p-1 rounded-full transition-colors ${
+                className={`p-1 rounded-full transition-colors cursor-pointer ${
                   newTodayGoal ? 'text-[#D71921]' : 'text-white/40 hover:text-white'
                 }`}
                 title="Toggle Goal Link"
@@ -221,117 +220,99 @@ export const DailyLogSection: React.FC<DailyLogSectionProps> = ({ selectedDateKe
               </h2>
             </div>
 
-            {/* 5 Circular LED dots */}
+            {/* Task Count Badge (Turns subtle amber if > 5) */}
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-white/60">
-                {tomorrowCount}/5
-              </span>
-              <div className="flex items-center gap-1.5">
-                {[0, 1, 2, 3, 4].map((slotIdx) => (
-                  <span
-                    key={slotIdx}
-                    className={`w-2 h-2 rounded-full transition-all ${
-                      slotIdx < tomorrowCount
-                        ? 'bg-[#D71921] shadow-[0_0_8px_#D71921]'
-                        : 'bg-white/20'
-                    }`}
-                  />
-                ))}
+              <div
+                className={`px-2.5 py-0.5 rounded-full text-xs font-mono font-medium transition-colors border ${
+                  tomorrowCount > 5
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : 'bg-white/[0.08] text-white/90 border-white/[0.08]'
+                }`}
+              >
+                {tomorrowCount} {tomorrowCount === 1 ? 'task' : 'tasks'}
               </div>
             </div>
           </div>
 
-          {/* Tomorrow List */}
-          <div className="my-4 space-y-2">
-            {[0, 1, 2, 3, 4].map((slotIndex) => {
-              const task = tomorrowTasks?.[slotIndex];
-              const slotNum = String(slotIndex + 1).padStart(2, '0');
-
-              if (task) {
-                return (
-                  <div
-                    key={task.id}
-                    className="group bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.07] rounded-2xl px-4 py-3 flex items-center justify-between transition-all"
-                  >
-                    <div className="flex items-center gap-3 flex-1 min-w-0 pr-2">
-                      <span className="font-mono text-xs text-white/50">
-                        {slotNum}
-                      </span>
-                      <p className="text-xs text-white/90 font-medium truncate">
-                        {task.title}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      {task.linkedToGoal && (
-                        <span
-                          className="w-2 h-2 rounded-full bg-[#D71921] shadow-[0_0_8px_#D71921]"
-                          title="Linked to goal"
-                        />
-                      )}
-                      <button
-                        onClick={() => toggleGoalLink(task.id)}
-                        className={`p-1 transition-colors ${
-                          task.linkedToGoal ? 'text-[#D71921]' : 'text-white/40 hover:text-white'
-                        }`}
-                        title="Toggle goal"
-                      >
-                        <Target size={12} />
-                      </button>
-                      <button
-                        onClick={() => deleteTask(task.id)}
-                        className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white p-1 transition-opacity"
-                        title="Delete task"
-                      >
-                        <X size={13} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              }
+          {/* Tomorrow List with Clean Scrollable View */}
+          <div className="my-4 space-y-2 overflow-y-auto max-h-[340px] pr-1">
+            {tomorrowTasks && tomorrowTasks.map((task: TaskItem, idx: number) => {
+              const slotNum = String(idx + 1).padStart(2, '0');
 
               return (
                 <div
-                  key={`empty-slot-${slotIndex}`}
-                  className="bg-white/[0.02] border border-dashed border-white/[0.06] rounded-2xl px-4 py-3 flex items-center text-xs font-mono text-white/25 select-none"
+                  key={task.id}
+                  className="group bg-white/[0.05] hover:bg-white/[0.08] border border-white/[0.07] rounded-2xl px-4 py-3 flex items-center justify-between transition-all"
                 >
-                  {slotNum} · AVAILABLE PRIORITY SLOT
+                  <div className="flex items-center gap-3 flex-1 min-w-0 pr-2">
+                    <span className="font-mono text-xs text-white/50">
+                      {slotNum}
+                    </span>
+                    <p className="text-xs text-white/90 font-medium truncate">
+                      {task.title}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {task.linkedToGoal && (
+                      <span
+                        className="w-2 h-2 rounded-full bg-[#D71921] shadow-[0_0_8px_#D71921]"
+                        title="Linked to goal"
+                      />
+                    )}
+                    <button
+                      onClick={() => toggleGoalLink(task.id)}
+                      className={`p-1 transition-colors cursor-pointer ${
+                        task.linkedToGoal ? 'text-[#D71921]' : 'text-white/40 hover:text-white'
+                      }`}
+                      title="Toggle goal"
+                    >
+                      <Target size={12} />
+                    </button>
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      className="opacity-0 group-hover:opacity-100 text-white/40 hover:text-white p-1 transition-opacity cursor-pointer"
+                      title="Delete task"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
                 </div>
               );
             })}
+
+            {(!tomorrowTasks || tomorrowTasks.length === 0) && (
+              <div className="py-8 text-center text-xs font-mono text-white/30 tracking-wider">
+                ┌─ NO TASKS PLANNED FOR TOMORROW ─┐
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Bottom Frosted Input Pill */}
+        {/* Bottom Frosted Input Pill (Always Active, Never Locked) */}
         <form onSubmit={handleAddTomorrow} className="pt-2">
-          {!isTomorrowFull ? (
-            <div className="bg-white/[0.06] hover:bg-white/[0.08] focus-within:bg-white/[0.1] border border-white/[0.1] rounded-2xl px-4 py-3 flex items-center gap-2.5 transition">
-              <Plus size={14} className="text-white/40 shrink-0" />
-              <input
-                type="text"
-                placeholder="+ Plan for tomorrow..."
-                value={newTomorrowTitle}
-                onChange={(e) => setNewTomorrowTitle(e.target.value)}
-                className="flex-1 bg-transparent text-xs text-white placeholder:text-white/40 outline-none"
-              />
-              {newTomorrowTitle.trim() && (
-                <button
-                  type="button"
-                  onClick={() => setNewTomorrowGoal(!newTomorrowGoal)}
-                  className={`p-1 rounded-full transition-colors ${
-                    newTomorrowGoal ? 'text-[#D71921]' : 'text-white/40 hover:text-white'
-                  }`}
-                  title="Toggle Goal Link"
-                >
-                  <Target size={13} />
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="h-11 flex items-center justify-center text-xs text-white/50 font-mono bg-white/[0.03] rounded-2xl border border-white/[0.08]">
-              [5/5 PRIORITY SLOTS OCCUPIED]
-            </div>
-          )}
+          <div className="bg-white/[0.06] hover:bg-white/[0.08] focus-within:bg-white/[0.1] border border-white/[0.1] rounded-2xl px-4 py-3 flex items-center gap-2.5 transition">
+            <Plus size={14} className="text-white/40 shrink-0" />
+            <input
+              type="text"
+              placeholder="+ Plan for tomorrow..."
+              value={newTomorrowTitle}
+              onChange={(e) => setNewTomorrowTitle(e.target.value)}
+              className="flex-1 bg-transparent text-xs text-white placeholder:text-white/40 outline-none"
+            />
+            {newTomorrowTitle.trim() && (
+              <button
+                type="button"
+                onClick={() => setNewTomorrowGoal(!newTomorrowGoal)}
+                className={`p-1 rounded-full transition-colors cursor-pointer ${
+                  newTomorrowGoal ? 'text-[#D71921]' : 'text-white/40 hover:text-white'
+                }`}
+                title="Toggle Goal Link"
+              >
+                <Target size={13} />
+              </button>
+            )}
+          </div>
         </form>
       </section>
     </div>
