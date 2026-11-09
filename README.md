@@ -61,15 +61,20 @@ It is **100% local-first**: all telemetry, task items, and sleep data are stored
 - **14-Day Focus vs. Distracted Trend:** Architectural vertical bar chart with interactive day inspection.
 - **Clean 3-Card Zero-Scroll Layout:** Everything fits strictly on a single screen without vertical scrolling.
 
-### 4. Native Linux Desktop & Mini-Widget (Tauri v2)
+### 4. Native Linux Desktop, System Tray & Mini-Widget (Tauri v2)
 - **Frameless Translucent Frosted Glass:** Built on Tauri v2 with `transparent: true`, a smoked glass base (`#121216]/75 backdrop-blur-2xl`), and specular highlights that refract ambient Nothing Crimson and Ivory light orbs.
+- **Native System Tray Integration:**
+  - Persists in the Linux top panel with a branded status icon and telemetry tooltip.
+  - **Left-Click:** Instantly toggles window visibility (hides to tray or shows and focuses).
+  - **Context Menu:** Right-click tray menu with *Show DAYMARK*, *Switch to Mini-Widget*, *Hide to Tray*, and *Quit DAYMARK*.
+  - **Close-to-Tray:** Clicking the top-right `✕` hides the window to the tray instead of killing the process, preserving ongoing focus sessions and timers in the background.
 - **Native Window Dragging:** Grab and reposition the window anywhere across your Ubuntu desktop.
 - **Compact Always-On-Top Mini-Widget (`380x460`):** Click `[ ❐ ]` to collapse the app into a tiny, pinned floating instrument in the corner of your monitor showing the live timer, active task, space rocker, and top 3 priorities.
 - **Frameless Controls:** Clean top-right circular frosted icon buttons:
   - `[ ❐ ]` Toggle Mini-Widget (`380x460`) / Full Dashboard (`900x640`)
   - `[ — ]` Minimize
   - `[ □ ]` Maximize / Restore
-  - `[ ✕ ]` Close (turns `#D71921` crimson on hover)
+  - `[ ✕ ]` Hide to Tray (turns `#D71921` crimson on hover)
 - **Ubuntu App Launcher:** Registered desktop entry (`~/.local/share/applications/daymark.desktop`) lets you press the **Super key** and type `Daymark` to launch immediately.
 - **Offline PWA:** Also runs standalone in any browser with Service Worker asset caching and manifest support.
 
@@ -174,3 +179,4 @@ All data is stored directly on your machine in IndexedDB:
 ## License
 
 This project is open source and available under the [MIT License](LICENSE).
+

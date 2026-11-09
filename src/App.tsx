@@ -51,6 +51,30 @@ export const App: React.FC = () => {
     resizeNativeWindowForMode(isWidgetMode);
   }, [isWidgetMode]);
 
+  // Listen for tray menu commands ("set-mode": "widget" or "full")
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    (async () => {
+      try {
+        const { listen } = await import('@tauri-apps/api/event');
+        unlisten = await listen<string>('set-mode', (event) => {
+          if (event.payload === 'widget') {
+            setIsWidgetMode(true);
+            resizeNativeWindowForMode(true);
+          } else if (event.payload === 'full') {
+            setIsWidgetMode(false);
+            resizeNativeWindowForMode(false);
+          }
+        });
+      } catch (err) {
+        console.warn('Tauri event listener setup failed:', err);
+      }
+    })();
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
   // Shared Desk Timer for top bar live pill, tracker tab, and widget view
   const deskTimer = useDeskTimer(selectedDateKey);
 

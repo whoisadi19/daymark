@@ -63,15 +63,20 @@ export async function toggleMaximizeNativeWindow(): Promise<void> {
 }
 
 /**
- * Closes the native OS window.
+ * Hides the native OS window to the system tray, keeping background timers running.
  */
 export async function closeNativeWindow(): Promise<void> {
   if (!isTauri()) return;
   try {
     const appWindow = getCurrentWindow();
-    await appWindow.close();
+    await appWindow.hide();
   } catch (err) {
-    console.warn('[Tauri] Failed to close window:', err);
+    try {
+      const appWindow = getCurrentWindow();
+      await appWindow.close();
+    } catch {
+      console.warn('[Tauri] Failed to hide/close window:', err);
+    }
   }
 }
 
